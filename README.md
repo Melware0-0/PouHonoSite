@@ -1,4 +1,4 @@
-# Pou Hono — Community Data System (Proof of Concept)
+# Pou Hono — Community Data System 
 
 A full-stack registration and attendance system 
 Front-end (HTML/CSS/JS) + back-end (Node.js + Express) + local database (SQLite).
