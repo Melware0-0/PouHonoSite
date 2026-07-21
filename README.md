@@ -1,6 +1,6 @@
-# Pou Hono — Community Data System 
+# Pou Hono — Community Data System
 
-A full-stack registration and attendance system 
+A full-stack registration and attendance system (proof of concept)
 Front-end (HTML/CSS/JS) + back-end (Node.js + Express) + local database (SQLite).
 
 ---
@@ -74,7 +74,7 @@ you'll see the raw JSON the front-end works from.
 - **FR9** Custom reports — date-range selection recalculates everything
 - **FR10** Dashboard — stats, quick actions, recent registrations
 
-## Deliberately NOT implemented yet (good future sprints)
+## NOT implemented yet (good future sprints)
 
 - **Real login** — the login page is a placeholder that routes to a portal.
   Complex authentication is out of scope per the proposal; a basic version
