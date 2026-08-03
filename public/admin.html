@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin Dashboard — Pou Hono</title>
+<link rel="stylesheet" href="/styles.css">
+<style>
+  /* --- Password gate --- */
+  #gate {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+
+  #gate .card {
+    background: var(--bg-alt);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 36px;
+    width: 100%;
+    max-width: 360px;
+    text-align: center;
+  }
+
+  #gate .card .icon { font-size: 2rem; margin-bottom: 8px; }
+  #gate input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    color: var(--text);
+    font-size: 0.95rem;
+    margin: 16px 0;
+    text-align: center;
+  }
+
+  #gate input:focus {
+    outline: none;
+    border-color: var(--green-accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+
+  #gateError {
+    display: none;
+    color: var(--error);
+    font-size: 0.85rem;
+    margin-bottom: 8px;
+  }
+
+  /* --- Dashboard --- */
+  #dashboard { display: none; }
+
+  .admin-wrap {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 40px 20px 100px;
+  }
+
+  .admin-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 28px;
+  }
+
+  .admin-head h1 { margin: 0; font-size: 1.7rem; }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 28px;
+  }
+
+  .stat-card {
+    background: var(--bg-alt);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+  }
+
+  .stat-card .label {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 6px;
+  }
+
+  .stat-card .value {
+    font-size: 1.7rem;
+    font-weight: 800;
+    color: var(--green-accent);
+  }
+
+  .layout-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    gap: 20px;
+    align-items: start;
+  }
+
+  @media (max-width: 900px) {
+    .layout-grid { grid-template-columns: 1fr; }
+  }
+
+  .panel {
+    background: var(--bg-alt);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+  }
+
+  .panel h2 { font-size: 1.1rem; margin-bottom: 16px; }
+
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+
+  .filters input, .filters select {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 9px 12px;
+    color: var(--text);
+    font-size: 0.9rem;
+  }
+
+  .filters input { flex: 1; min-width: 160px; }
+
+  .table-scroll { overflow-x: auto; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; min-width: 760px; }
+
+  th, td {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  td.wrap-cell { white-space: normal; max-width: 220px; }
+
+  th {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  tbody tr:hover { background: var(--bg); }
+
+  .status-pill {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+  }
+
+  .status-pill--pending { background: rgba(242, 183, 5, 0.15); color: var(--gold); }
+  .status-pill--arrived { background: var(--success-bg); color: var(--success); }
+
+  .empty-row td {
+    text-align: center;
+    color: var(--text-muted);
+    padding: 28px;
+  }
+
+  .chart-wrap { position: relative; height: 260px; }
+
+  .legend-list {
+    list-style: none;
+    margin: 16px 0 0;
+    padding: 0;
+    font-size: 0.85rem;
+  }
+
+  .legend-list li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .legend-list li:last-child { border-bottom: none; }
+
+  .legend-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 8px;
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ PASSWORD GATE ============ -->
+<div id="gate">
+  <div class="card">
+    <div class="icon" aria-hidden="true">🔒</div>
+    <h2>Admin Access</h2>
+    <p style="color:var(--text-muted); font-size:0.9rem;">Enter the admin password to continue.</p>
+    <div id="gateError">Incorrect password.</div>
+    <form id="gateForm">
+      <input type="password" id="gatePassword" placeholder="Password" autocomplete="off" required>
+      <button type="submit" class="btn btn--primary" style="width:100%;">Enter</button>
+    </form>
+  </div>
+</div>
+
+<!-- ============ DASHBOARD ============ -->
+<div id="dashboard">
+  <div id="site-nav"></div>
+
+  <main class="admin-wrap">
+    <div class="admin-head">
+      <h1>Admin Dashboard</h1>
+      <span style="color:var(--text-muted); font-size:0.85rem;">NZ Tech Week 2027 — SACTH &amp; The Cause Collective</span>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="label">Total Registrations</div>
+        <div class="value" id="statTotal">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Total Students</div>
+        <div class="value" id="statStudents">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Total Adults</div>
+        <div class="value" id="statAdults">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Most Popular Session</div>
+        <div class="value" id="statPopular" style="font-size:1.3rem;">—</div>
+      </div>
+    </div>
+
+    <div class="layout-grid">
+      <div class="panel">
+        <h2>Registrations</h2>
+        <div class="filters">
+          <input type="text" id="filterSchool" placeholder="Search by school name...">
+          <select id="filterSession">
+            <option value="">All sessions</option>
+          </select>
+          <select id="filterStatus">
+            <option value="">All statuses</option>
+            <option value="Pending">Pending</option>
+            <option value="Arrived">Arrived</option>
+          </select>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>School</th>
+                <th>Contact</th>
+                <th>Email</th>
+                <th>Students</th>
+                <th>Adults</th>
+                <th>Session</th>
+                <th>Date</th>
+                <th>Status</th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+            <tbody id="tableBody">
+              <tr class="empty-row"><td colspan="9">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Students by Preferred Session</h2>
+        <div class="chart-wrap">
+          <canvas id="sessionChart"></canvas>
+        </div>
+        <ul class="legend-list" id="chartLegend"></ul>
+      </div>
+    </div>
+  </main>
+
+  <div id="site-footer"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="/nav.js"></script>
+<script>
+  const ADMIN_PASSWORD = 'SACTH2027';
+  const SESSION_COLORS = ['#2d8c4e', '#1d9e75', '#f2b705', '#e2584c', '#5b8def', '#9a6fd6'];
+
+  // --- Password gate ---
+  const gate = document.getElementById('gate');
+  const dashboard = document.getElementById('dashboard');
+  const gateForm = document.getElementById('gateForm');
+  const gateError = document.getElementById('gateError');
+
+  function unlock() {
+    sessionStorage.setItem('pouHonoAdminUnlocked', '1');
+    gate.style.display = 'none';
+    dashboard.style.display = 'block';
+    loadDashboard();
+  }
+
+  if (sessionStorage.getItem('pouHonoAdminUnlocked') === '1') {
+    unlock();
+  }
+
+  gateForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const value = document.getElementById('gatePassword').value;
+    if (value === ADMIN_PASSWORD) {
+      unlock();
+    } else {
+      gateError.style.display = 'block';
+      setTimeout(() => { window.location.href = '/'; }, 1200);
+    }
+  });
+
+  // --- Dashboard data ---
+  let allRegistrations = [];
+  let allStudents = []; // flattened, across every registration
+
+  async function loadDashboard() {
+    const res = await fetch('/api/registrations');
+    const rows = await res.json();
+    allRegistrations = rows.filter((r) => r.school !== 'Individual / Walk-in');
+    const walkIn = rows.find((r) => r.school === 'Individual / Walk-in');
+
+    const studentLists = await Promise.all(
+      rows.map((r) => fetch(`/api/registrations/${r.id}/students`).then((res) => res.json()))
+    );
+    allStudents = studentLists.flat();
+
+    renderStats(walkIn);
+    populateSessionFilter();
+    renderTable();
+    renderChart();
+  }
+
+  function renderStats(walkIn) {
+    const totalRegistrations = allRegistrations.length;
+
+    const walkInStudentCount = walkIn
+      ? allStudents.filter((s) => s.registration_id === walkIn.id).length
+      : 0;
+    const totalStudents = allRegistrations.reduce((sum, r) => sum + r.students, 0) + walkInStudentCount;
+    const totalAdults = allRegistrations.reduce((sum, r) => sum + r.adults, 0);
+
+    const sessionTally = {};
+    allStudents.forEach((s) => {
+      sessionTally[s.preferred_session] = (sessionTally[s.preferred_session] || 0) + 1;
+    });
+    const popular = Object.entries(sessionTally).sort((a, b) => b[1] - a[1])[0];
+
+    document.getElementById('statTotal').textContent = totalRegistrations;
+    document.getElementById('statStudents').textContent = totalStudents;
+    document.getElementById('statAdults').textContent = totalAdults;
+    document.getElementById('statPopular').textContent = popular ? popular[0] : 'No sessions picked yet';
+  }
+
+  function populateSessionFilter() {
+    const select = document.getElementById('filterSession');
+    const sessions = [...new Set(allRegistrations.map((r) => r.session))].sort();
+    sessions.forEach((s) => {
+      const opt = document.createElement('option');
+      opt.value = s;
+      opt.textContent = s;
+      select.appendChild(opt);
+    });
+  }
+
+  function renderTable() {
+    const schoolQuery = document.getElementById('filterSchool').value.trim().toLowerCase();
+    const sessionQuery = document.getElementById('filterSession').value;
+    const statusQuery = document.getElementById('filterStatus').value;
+
+    const filtered = allRegistrations.filter((r) => {
+      if (schoolQuery && !r.school.toLowerCase().includes(schoolQuery)) return false;
+      if (sessionQuery && r.session !== sessionQuery) return false;
+      if (statusQuery && r.status !== statusQuery) return false;
+      return true;
+    });
+
+    const tbody = document.getElementById('tableBody');
+
+    if (!filtered.length) {
+      tbody.innerHTML = '<tr class="empty-row"><td colspan="9">No registrations match your filters.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = filtered.map((r) => `
+      <tr>
+        <td>${escapeHtml(r.school)}</td>
+        <td>${escapeHtml(r.contact)}</td>
+        <td>${escapeHtml(r.email)}</td>
+        <td>${r.students}</td>
+        <td>${r.adults}</td>
+        <td>${escapeHtml(r.session)}</td>
+        <td>${escapeHtml(r.date)}</td>
+        <td>
+          <button class="status-pill status-pill--${r.status.toLowerCase()}" data-id="${r.id}" data-status="${r.status}">
+            ${r.status}
+          </button>
+        </td>
+        <td class="wrap-cell">${escapeHtml(r.notes || '—')}</td>
+      </tr>
+    `).join('');
+
+    tbody.querySelectorAll('.status-pill').forEach((btn) => {
+      btn.addEventListener('click', () => toggleStatus(btn));
+    });
+  }
+
+  async function toggleStatus(btn) {
+    const id = btn.dataset.id;
+    const next = btn.dataset.status === 'Pending' ? 'Arrived' : 'Pending';
+
+    btn.disabled = true;
+    try {
+      const res = await fetch(`/api/registrations/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: next })
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        const idx = allRegistrations.findIndex((r) => r.id === updated.id);
+        if (idx !== -1) allRegistrations[idx] = updated;
+        renderTable();
+      }
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  document.getElementById('filterSchool').addEventListener('input', renderTable);
+  document.getElementById('filterSession').addEventListener('change', renderTable);
+  document.getElementById('filterStatus').addEventListener('change', renderTable);
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  // --- Pie chart ---
+  let chartInstance = null;
+
+  function renderChart() {
+    const tally = {};
+    allStudents.forEach((s) => {
+      tally[s.preferred_session] = (tally[s.preferred_session] || 0) + 1;
+    });
+
+    const labels = Object.keys(tally);
+    const data = Object.values(tally);
+    const colors = labels.map((_, i) => SESSION_COLORS[i % SESSION_COLORS.length]);
+
+    const legend = document.getElementById('chartLegend');
+
+    if (!labels.length) {
+      legend.innerHTML = '<li style="justify-content:center; color:var(--text-muted);">No students registered yet.</li>';
+      return;
+    }
+
+    legend.innerHTML = labels.map((label, i) => `
+      <li>
+        <span><span class="legend-dot" style="background:${colors[i]}"></span>${escapeHtml(label)}</span>
+        <span>${data[i]}</span>
+      </li>
+    `).join('');
+
+    const ctx = document.getElementById('sessionChart').getContext('2d');
+    if (chartInstance) chartInstance.destroy();
+    chartInstance = new Chart(ctx, {
+      type: 'pie',
+      data: {
+        labels,
+        datasets: [{ data, backgroundColor: colors, borderColor: '#212739', borderWidth: 2 }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false }
+        }
+      }
+    });
+  }
+</script>
+</body>
+</html>

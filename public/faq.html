@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FAQ — Pou Hono | SACTH NZ Tech Week</title>
+<meta name="description" content="Frequently asked questions about SACTH's NZ Tech Week 2027 event.">
+<link rel="stylesheet" href="/styles.css">
+<style>
+  .page-head {
+    text-align: center;
+    padding: 64px 20px 24px;
+  }
+
+  .page-head h1 { font-size: clamp(1.8rem, 4vw, 2.6rem); }
+  .page-head p { color: var(--text-muted); max-width: 560px; margin: 0 auto; }
+
+  .faq-wrap {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 24px 20px 60px;
+  }
+
+  .faq-item {
+    background: var(--bg-alt);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 14px;
+    overflow: hidden;
+  }
+
+  .faq-question {
+    width: 100%;
+    background: none;
+    border: none;
+    color: var(--text);
+    text-align: left;
+    padding: 20px 24px;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .faq-question .icon {
+    color: var(--green-accent);
+    font-size: 1.3rem;
+    flex-shrink: 0;
+    transition: transform 0.2s ease;
+  }
+
+  .faq-item.is-open .faq-question .icon {
+    transform: rotate(45deg);
+  }
+
+  .faq-answer {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.25s ease;
+  }
+
+  .faq-answer p {
+    padding: 0 24px 20px;
+    margin: 0;
+    color: var(--text-muted);
+    line-height: 1.6;
+  }
+
+  .faq-cta {
+    text-align: center;
+    padding: 40px 20px 80px;
+  }
+
+  .faq-cta p { color: var(--text-muted); margin-bottom: 16px; }
+</style>
+</head>
+<body>
+
+<div id="site-nav"></div>
+
+<main>
+  <div class="page-head reveal is-visible">
+    <h1>Frequently Asked Questions</h1>
+    <p>Everything you need to know about NZ Tech Week 2027 with SACTH.</p>
+  </div>
+
+  <div class="faq-wrap">
+    <div class="faq-item">
+      <button class="faq-question">
+        What is SACTH and The Cause Collective?
+        <span class="icon" aria-hidden="true">+</span>
+      </button>
+      <div class="faq-answer">
+        <p>SACTH — the South Auckland Creative Tech Hub — is a Pacific social change initiative run by The Cause Collective, based at 15 Earl Richardson Avenue, Wiri. We create free, hands-on spaces where South Auckland's young people can explore technology, creativity, and digital skills in an environment built around their culture and community.</p>
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question">
+        How much does it cost?
+        <span class="icon" aria-hidden="true">+</span>
+      </button>
+      <div class="faq-answer">
+        <p>Free! NZ Tech Week 2027 is completely free for every school, youth group, and individual — there's no charge to register or attend.</p>
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question">
+        Where is the event?
+        <span class="icon" aria-hidden="true">+</span>
+      </button>
+      <div class="faq-answer">
+        <p>15 Earl Richardson Avenue, Wiri, Auckland 2104 — see the map on the home page for directions.</p>
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question">
+        Who can attend?
+        <span class="icon" aria-hidden="true">+</span>
+      </button>
+      <div class="faq-answer">
+        <p>Any school class, youth group, or individual in South Auckland is welcome. Teachers can register a whole class, and individuals can register themselves directly — no prior tech experience needed.</p>
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question">
+        What should students bring?
+        <span class="icon" aria-hidden="true">+</span>
+      </button>
+      <div class="faq-answer">
+        <p>Just themselves and a water bottle. All equipment for each session is provided on the day — there's nothing to buy or bring along.</p>
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question">
+        Is the event safe?
+        <span class="icon" aria-hidden="true">+</span>
+      </button>
+      <div class="faq-answer">
+        <p>Yes. All sessions are supervised, and we collect health and allergy information at registration so we can plan around individual needs. Teachers remain responsible for their students throughout the event, as outlined when registering.</p>
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question">
+        How do I register my class?
+        <span class="icon" aria-hidden="true">+</span>
+      </button>
+      <div class="faq-answer">
+        <p>Head to the <a href="/register.html">Register</a> page and choose "I'm a Teacher." After your details are in, you'll get a shareable link and QR code so your students can register their own details and pick a session — or you can add them manually yourself.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="faq-cta reveal">
+    <p>Still have questions?</p>
+    <a class="btn btn--primary" href="#contact">Get in touch</a>
+  </div>
+</main>
+
+<div id="site-footer"></div>
+
+<script src="/nav.js"></script>
+<script>
+  document.querySelectorAll('.faq-item').forEach((item) => {
+    const question = item.querySelector('.faq-question');
+    const answer = item.querySelector('.faq-answer');
+
+    question.addEventListener('click', () => {
+      const isOpen = item.classList.contains('is-open');
+      document.querySelectorAll('.faq-item.is-open').forEach((open) => {
+        open.classList.remove('is-open');
+        open.querySelector('.faq-answer').style.maxHeight = null;
+      });
+      if (!isOpen) {
+        item.classList.add('is-open');
+        answer.style.maxHeight = answer.scrollHeight + 'px';
+      }
+    });
+  });
+
+  const revealTargets = document.querySelectorAll('.reveal:not(.is-visible)');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('is-visible');
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.15 });
+  revealTargets.forEach((el) => observer.observe(el));
+</script>
+</body>
+</html>
