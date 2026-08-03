@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Register — Pou Hono | SACTH NZ Tech Week</title>
+<style>
+  :root {
+    --bg: #1a1f2e;
+    --card: #212739;
+    --border: #333c54;
+    --input-bg: #171b28;
+    --text: #f2f3f6;
+    --text-muted: #9aa3b8;
+    --green: #2d8c4e;
+    --green-hover: #256f3e;
+    --green-glow: rgba(45, 140, 78, 0.35);
+    --error: #e2584c;
+    --error-bg: rgba(226, 88, 76, 0.12);
+    --success: #6fd28f;
+    --success-bg: rgba(45, 140, 78, 0.15);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    display: flex;
+    justify-content: center;
+    padding: 48px 16px;
+  }
+
+  main {
+    width: 100%;
+    max-width: 560px;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 28px;
+  }
+
+  header .mark {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--green);
+    margin-bottom: 12px;
+  }
+
+  header h1 {
+    margin: 0 0 6px;
+    font-size: 1.6rem;
+    font-weight: 600;
+  }
+
+  header p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.95rem;
+  }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px;
+  }
+
+  .field {
+    margin-bottom: 20px;
+  }
+
+  .field-row {
+    display: flex;
+    gap: 16px;
+  }
+
+  .field-row .field {
+    flex: 1;
+  }
+
+  label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: var(--text);
+  }
+
+  input,
+  select,
+  textarea {
+    width: 100%;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    color: var(--text);
+    font-size: 0.95rem;
+    font-family: inherit;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--text-muted);
+  }
+
+  input:focus,
+  select:focus,
+  textarea:focus {
+    outline: none;
+    border-color: var(--green);
+    box-shadow: 0 0 0 3px var(--green-glow);
+  }
+
+  textarea {
+    resize: vertical;
+    min-height: 80px;
+  }
+
+  select {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%239aa3b8'%3E%3Cpath fill-rule='evenodd' d='M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z' clip-rule='evenodd'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 36px;
+  }
+
+  button[type="submit"] {
+    width: 100%;
+    background: var(--green);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 13px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+
+  button[type="submit"]:hover:not(:disabled) {
+    background: var(--green-hover);
+  }
+
+  button[type="submit"]:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .hint {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+  }
+
+  .message {
+    display: none;
+    margin-bottom: 20px;
+    padding: 12px 14px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    line-height: 1.5;
+  }
+
+  .message.show {
+    display: block;
+  }
+
+  .message--success {
+    background: var(--success-bg);
+    color: var(--success);
+    border: 1px solid rgba(45, 140, 78, 0.4);
+  }
+
+  .message--error {
+    background: var(--error-bg);
+    color: var(--error);
+    border: 1px solid rgba(226, 88, 76, 0.4);
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <span class="mark"></span>
+    <h1>Pou Hono</h1>
+    <p>SACTH NZ Tech Week — Community Data System</p>
+  </header>
+
+  <div class="card">
+    <div id="form-message" class="message" role="status"></div>
+
+    <form id="registration-form" novalidate>
+      <div class="field">
+        <label for="school">School name</label>
+        <input type="text" id="school" name="school" required placeholder="e.g. Manurewa Primary">
+      </div>
+
+      <div class="field">
+        <label for="contact">Contact person</label>
+        <input type="text" id="contact" name="contact" required placeholder="e.g. J. Fale">
+      </div>
+
+      <div class="field">
+        <label for="email">Contact email</label>
+        <input type="email" id="email" name="email" required placeholder="office@school.school.nz">
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="students">Number of students</label>
+          <input type="number" id="students" name="students" min="1" max="500" required placeholder="1–500">
+        </div>
+        <div class="field">
+          <label for="adults">Number of adults</label>
+          <input type="number" id="adults" name="adults" min="0" max="200" value="0">
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="session">Session</label>
+        <select id="session" name="session" required>
+          <option value="" disabled selected>Select a session</option>
+          <option value="Animation Workshop">Animation Workshop</option>
+          <option value="Music Making">Music Making</option>
+          <option value="Coding for Beginners">Coding for Beginners</option>
+          <option value="Digital Design">Digital Design</option>
+          <option value="Robotics Demo">Robotics Demo</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="date">Preferred date</label>
+        <input type="date" id="date" name="date" required>
+      </div>
+
+      <div class="field">
+        <label for="notes">Notes <span class="hint" style="display:inline">(optional)</span></label>
+        <textarea id="notes" name="notes" placeholder="Accessibility needs, group details, anything else we should know"></textarea>
+      </div>
+
+      <button type="submit">Submit registration</button>
+    </form>
+  </div>
+</main>
+
+<script>
+  const form = document.getElementById('registration-form');
+  const messageBox = document.getElementById('form-message');
+  const submitBtn = form.querySelector('button[type="submit"]');
+
+  function showMessage(text, type) {
+    messageBox.textContent = text;
+    messageBox.className = 'message show message--' + type;
+  }
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      return;
+    }
+
+    const formData = new FormData(form);
+    const payload = {
+      school: formData.get('school'),
+      contact: formData.get('contact'),
+      email: formData.get('email'),
+      students: Number(formData.get('students')),
+      adults: Number(formData.get('adults') || 0),
+      session: formData.get('session'),
+      date: formData.get('date'),
+      notes: formData.get('notes') || ''
+    };
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Submitting…';
+
+    try {
+      const res = await fetch('/api/registrations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        showMessage(`Thanks — the registration for ${data.school} has been received.`, 'success');
+        form.reset();
+        document.getElementById('adults').value = 0;
+      } else {
+        const errors = (data.errors && data.errors.join(' ')) || 'Something went wrong. Please check the form and try again.';
+        showMessage(errors, 'error');
+      }
+    } catch (err) {
+      showMessage('Could not reach the server. Please check your connection and try again.', 'error');
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Submit registration';
+    }
+  });
+</script>
+</body>
+</html>

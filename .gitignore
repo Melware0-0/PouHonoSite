@@ -1,0 +1,4 @@
+node_modules/
+pou-hono.db
+pou-hono.db-wal
+pou-hono.db-shm
