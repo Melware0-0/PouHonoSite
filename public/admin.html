@@ -465,13 +465,15 @@
   // --- Dashboard data ---
   let allRegistrations = [];
   let allStudents = []; // flattened, across every registration
+  let walkInRegistrationId = null;
 
   async function loadDashboard() {
     try {
       const res = await adminFetch('/api/registrations');
       const rows = await res.json();
-      allRegistrations = rows.filter((r) => r.school !== 'Individual / Walk-in');
-      const walkIn = rows.find((r) => r.school === 'Individual / Walk-in');
+      const walkIn = rows.find((r) => r.is_walk_in === 1);
+      walkInRegistrationId = walkIn ? walkIn.id : null;
+      allRegistrations = rows.filter((r) => r.is_walk_in !== 1);
 
       // Every student in the system, in ONE request. This used to be one
       // request per registration, which is invisible with five rows and
@@ -679,7 +681,7 @@
      * WALK-IN CHILDREN — the deliberate decision.
      *
      * Children who signed up without a teacher hang off the hidden
-     * "Individual / Walk-in" container row, which loadDashboard strips out
+     * system walk-in container row, which loadDashboard strips out
      * of allRegistrations: it is not a school and never belongs in the
      * table. So there is no class row for a class-level filter to test them
      * against, and we have to choose.
@@ -696,7 +698,7 @@
     const filteredStudents = allStudents.filter((s) => {
       if (!studentMatches(s, f)) return false;
       if (matchingClassIds.has(s.registration_id)) return true;
-      return !classFilterOn; // a walk-in child, with no class of their own
+      return !classFilterOn && s.registration_id === walkInRegistrationId;
     });
 
     const idsWithMatchingStudents = new Set(filteredStudents.map((s) => s.registration_id));

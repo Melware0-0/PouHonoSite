@@ -70,14 +70,14 @@ question is which one it needs.
 
 Two rules that are easy to break by accident:
 
-- **An unknown token and a rejected token must return the identical 404.** If
-  they differ, someone probing can enumerate valid tokens. The existing
-  middleware says so in a comment — keep that property.
+- **Inside `requireTeacherToken`, a missing, unknown, or rejected token must
+  return the identical 404.** If they differ, someone probing that API gate can
+  enumerate valid tokens. Page routes have their own documented behavior.
 - **The "Individual / Walk-in" registration's token is public** (handed out by
   `GET /api/walk-in-registration` so individuals can sign up). It must therefore
-  never satisfy `requireTeacherToken` or open the teacher portal. `server.js`
-  has `WALK_IN_SCHOOL` and `isWalkInRegistration(reg)` for this test — use them
-  rather than re-typing the string.
+  never satisfy `requireTeacherToken` or open the teacher portal. It is
+  identified by the database's `is_walk_in` flag, never by its editable school
+  display name; `server.js` centralizes the test in `isWalkInRegistration(reg)`.
 
 ## Architecture
 
@@ -123,11 +123,11 @@ Both take the same token; an unknown token on either redirects to `/`.
 
 - **New API endpoint** → `server.js`, following an existing route, and pick its
   gatekeeper deliberately.
-- **New database column** → add it to the `CREATE TABLE` in `db.js` **and** to
-  the `addColumnIfMissing(...)` calls below it, so existing databases upgrade in
-  place rather than needing to be deleted. Then update `validateRegistration` /
-  `cleanRegistration` (or the student equivalents), the explicit column lists,
-  and the form.
+- **New database column** → add it to the `CREATE TABLE` in `db.js` **and** add
+  an `addColumnIfMissing(...)` call below it, so existing databases upgrade in
+  place rather than needing to be deleted. If it is user-facing, also update the
+  relevant validation/cleaning functions, explicit response column lists, and
+  form; internal columns must not be accepted from public request bodies.
 - **New front-end page** → a new file in `public/`, copying an existing page's
   structure (nav placeholder, `styles.css`, `nav.js`, and `translations.js` if
   it needs the language switcher). These are separate pages, not one SPA.
