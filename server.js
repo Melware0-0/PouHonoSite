@@ -827,11 +827,23 @@ app.delete('/api/my-registration/students/:studentId', requireTeacherToken, (req
  * information that does the job.
  */
 app.get('/api/registrations/token/:token', (req, res) => {
-  const reg = db.prepare('SELECT school FROM registrations WHERE token = ?').get(req.params.token);
+  const reg = db
+    .prepare('SELECT school, is_walk_in FROM registrations WHERE token = ?')
+    .get(req.params.token);
+
   if (!reg) {
     return res.status(404).json({ errors: ['Registration link not found.'] });
   }
-  res.json({ school: reg.school });
+
+  // isWalkIn tells the student page which greeting to show: an individual
+  // signing up on their own should not read "You're joining Individual /
+  // Walk-in's visit". It has to be the FLAG and not the school name,
+  // because a real teacher is allowed to name their class anything at all,
+  // including that exact string — see isWalkInRegistration.
+  //
+  // Sending it leaks nothing: this route is already public, and the
+  // walk-in token is handed to anyone who asks for it by design.
+  res.json({ school: reg.school, isWalkIn: isWalkInRegistration(reg) });
 });
 
 /**

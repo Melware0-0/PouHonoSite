@@ -9,9 +9,11 @@
  * SACTH and The Cause Collective's Māori and Pasifika community.
  *
  * That warning covers the newer strings too — the teacher-portal
- * (portal_*) strings used by teacher.html, and the event-day and
- * "will all students attend" strings on the registration form. Every one
- * of them is unreviewed AI output in mi/sm/to and needs the same check.
+ * (portal_*) strings used by teacher.html, the event-day and "will all
+ * students attend" strings on the registration form, and the
+ * student_*_individual strings the student page shows to someone signing
+ * up on their own. Every one of them is unreviewed AI output in mi/sm/to
+ * and needs the same check.
  */
 const TRANSLATIONS = {
   en: {
@@ -60,6 +62,8 @@ const TRANSLATIONS = {
     btn_go_to_registration: "Go to Registration",
     student_disclaimer_text: "We collect this information to plan a safe NZ Tech Week 2027 event and to let you choose a session. Your details are stored securely by SACTH and The Cause Collective and are never shared outside the event's organisation.",
     student_checkbox_accept: "I understand how my information will be used and agree to take part.",
+    student_title_individual: "Register to attend",
+    student_subtitle_individual: "You're registering as an individual for NZ Tech Week 2027 — pick your session below.",
     label_your_name: "Your name",
     btn_submit_registration: "Submit registration",
     success_title: "You're all set!",
@@ -142,6 +146,8 @@ const TRANSLATIONS = {
     btn_go_to_registration: "Haere ki te Rēhita",
     student_disclaimer_text: "Ka kohia ēnei mōhiohio e mātou hei whakamahere i tētahi huihuinga haumaru mō te Wiki Hangarau 2027, hei tuku hoki i a koe kia kōwhiri i tētahi wāhanga. Ka rongoātia ō taipitopito e SACTH me The Cause Collective, kāore hoki e tohaina ki waho atu i te whakahaere o te huihuinga.",
     student_checkbox_accept: "E mārama ana ahau ki te whakamahinga o aku mōhiohio, ā, e whakaae ana ahau ki te whai wāhi.",
+    student_title_individual: "Rēhita kia tae atu",
+    student_subtitle_individual: "E rēhita ana koe hei tangata takitahi mō te Wiki Hangarau o Aotearoa 2027 — tīpakohia tō wāhanga i raro nei.",
     label_your_name: "Tō ingoa",
     btn_submit_registration: "Tukuna te rēhitatanga",
     success_title: "Kua rite koe!",
@@ -224,6 +230,8 @@ const TRANSLATIONS = {
     btn_go_to_registration: "Alu i le Lesitala",
     student_disclaimer_text: "Matou te aoina lenei faʻamatalaga e fuafua ai se Vaiaso o Tekonolosi 2027 saogalemu, ma ia mafai ai ona e filifilia sau vasega. O ou faʻamatalaga o loʻo teuina saogalemu e le SACTH ma le The Cause Collective ma e le faʻasoa i fafo atu o le faʻalapotopotoga o le mea.",
     student_checkbox_accept: "Ua ou malamalama pe faʻapefea ona faʻaaogaina aʻu faʻamatalaga ma ou te malie e auai.",
+    student_title_individual: "Lesitala e auai",
+    student_subtitle_individual: "O loʻo e lesitala oe lava e pei o se tagata taʻitoʻatasi mo le Vaiaso Tekonolosi a Niu Sila 2027 — filifili lau vaega i lalo.",
     label_your_name: "Lou igoa",
     btn_submit_registration: "Tuuina atu le lesitala",
     success_title: "Ua uma ona saunia oe!",
@@ -306,6 +314,8 @@ const TRANSLATIONS = {
     btn_go_to_registration: "ʻAlu ki he Lesisita",
     student_disclaimer_text: "ʻOku mau tānaki e fakamatala ni ke teuteuʻi ha Uike Fakatekinolosia 2027 malu, pea ke ke lava ʻo fili ha vahenga. ʻOku tauhi malu hoʻo fakamatala ʻe he SACTH mo e The Cause Collective pea ʻoku ʻikai vahevahe ki tuʻa ʻi he kautaha fakatafataha ʻo e meʻa.",
     student_checkbox_accept: "ʻOku ou mahino ki hono ngāueʻaki ʻo ʻeku fakamatala pea ʻoku ou tali ke kau ai.",
+    student_title_individual: "Lesisita ke kau atu",
+    student_subtitle_individual: "ʻOku ke lesisita ko ha taautaha ki he Uike Fakatekinolosia ʻo Nuʻu Sila 2027 — fili hoʻo vahenga ʻi lalo.",
     label_your_name: "Ho hingoa",
     btn_submit_registration: "Tuku atu ʻa e lesisita",
     success_title: "Kuo mateuteu koe!",

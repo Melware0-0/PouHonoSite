@@ -294,6 +294,50 @@
   const pathMatch = window.location.pathname.match(/^\/join\/([^/]+)$/);
   const linkToken = pathMatch ? pathMatch[1] : null;
 
+  /**
+   * Set the page heading and subtitle for whoever is signing up.
+   *
+   * Two audiences reach this page. A student following their teacher's
+   * link should see their school's name. An individual signing up on
+   * their own should NOT — before this, an individual arriving on the
+   * walk-in link read "You're joining Individual / Walk-in's NZ Tech Week
+   * 2027 visit", which is the name of an internal database row and means
+   * nothing to a member of the public.
+   *
+   * Which case it is comes from the server's isWalkIn flag, never from
+   * comparing the school name: a real teacher is allowed to call their
+   * class "Individual / Walk-in", and they must still get the school
+   * wording.
+   *
+   * The individual wording is translated, so it is applied the same way
+   * the rest of the page is — by setting data-i18n and letting
+   * applyTranslations fill it in. That also means it follows along if the
+   * visitor changes language afterwards, because the language switcher
+   * re-runs applyTranslations over the whole document.
+   *
+   * The school version cannot work that way: it has a name embedded in
+   * it, so there is no fixed string to look up. It is set directly, and
+   * we clear any data-i18n first so a later language switch cannot
+   * overwrite the school's name with the individual wording.
+   */
+  function setPageIntro(titleEl, subtitleEl, isWalkIn, school) {
+    if (isWalkIn) {
+      titleEl.setAttribute('data-i18n', 'student_title_individual');
+      subtitleEl.setAttribute('data-i18n', 'student_subtitle_individual');
+
+      const lang = localStorage.getItem('pouHonoLang') || 'en';
+      if (typeof window.applyTranslations === 'function') {
+        window.applyTranslations(lang);
+      }
+      return;
+    }
+
+    titleEl.removeAttribute('data-i18n');
+    subtitleEl.removeAttribute('data-i18n');
+    titleEl.textContent = `Register for ${school}`;
+    subtitleEl.textContent = `You're joining ${school}'s NZ Tech Week 2027 visit — pick your session below.`;
+  }
+
   (async function init() {
     const titleEl = document.getElementById('pageTitle');
     const subtitleEl = document.getElementById('pageSubtitle');
@@ -311,8 +355,9 @@
         }
         const reg = await res.json();
         signUpToken = linkToken;
-        titleEl.textContent = `Register for ${reg.school}`;
-        subtitleEl.textContent = `You're joining ${reg.school}'s NZ Tech Week 2027 visit — pick your session below.`;
+        // The walk-in bucket's token opens /join/ too, so this branch has
+        // to handle an individual as well as a class.
+        setPageIntro(titleEl, subtitleEl, reg.isWalkIn, reg.school);
       } else {
         const res = await fetch('/api/walk-in-registration');
         if (!res.ok) {
@@ -322,8 +367,10 @@
         }
         const reg = await res.json();
         signUpToken = reg.token;
-        titleEl.textContent = 'Register to attend';
-        subtitleEl.textContent = "You're registering as an individual — pick your session below.";
+        // Reached /student.html directly, so this is always an individual.
+        // Same wording as the walk-in link above, from the same key, so an
+        // individual sees the same page whichever way they arrived.
+        setPageIntro(titleEl, subtitleEl, true, null);
       }
       showState('form');
     } catch (err) {
