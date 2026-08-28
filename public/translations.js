@@ -82,7 +82,11 @@ const TRANSLATIONS = {
     portal_loading: "Loading…",
     btn_remove: "Remove",
     portal_add_title: "Add a student by hand",
-    portal_add_help: "For students who cannot use the link themselves — type their details in here."
+    portal_add_help: "For students who cannot use the link themselves — type their details in here.",
+
+    // --- Which event day is this class coming on? (see event-days.js) ---
+    label_event_day: "Which day are you attending?",
+    error_pick_day: "Please choose which day you are attending."
   },
 
   mi: {
@@ -153,7 +157,11 @@ const TRANSLATIONS = {
     portal_loading: "E uta ana…",
     btn_remove: "Tangohia",
     portal_add_title: "Tāpirihia he ākonga ā-ringa",
-    portal_add_help: "Mō ngā ākonga kāore e taea te whakamahi i te hono — patohia ō rātou taipitopito ki konei."
+    portal_add_help: "Mō ngā ākonga kāore e taea te whakamahi i te hono — patohia ō rātou taipitopito ki konei.",
+
+    // --- Which event day is this class coming on? (see event-days.js) ---
+    label_event_day: "Ko tēhea rā ka tae mai koe?",
+    error_pick_day: "Tēnā kōwhiria te rā ka tae mai koe."
   },
 
   sm: {
@@ -224,7 +232,11 @@ const TRANSLATIONS = {
     portal_loading: "Utaina…",
     btn_remove: "Aveese",
     portal_add_title: "Faʻaopoopo se tamaititi aʻoga i le lima",
-    portal_add_help: "Mo tamaiti aʻoga e le mafai ona faʻaaogaina le soʻoga i latou lava — lomi a latou faʻamatalaga iinei."
+    portal_add_help: "Mo tamaiti aʻoga e le mafai ona faʻaaogaina le soʻoga i latou lava — lomi a latou faʻamatalaga iinei.",
+
+    // --- Which event day is this class coming on? (see event-days.js) ---
+    label_event_day: "O le fea aso e te auai ai?",
+    error_pick_day: "Faʻamolemole filifili le aso e te auai ai."
   },
 
   to: {
@@ -295,7 +307,11 @@ const TRANSLATIONS = {
     portal_loading: "Fakaheka…",
     btn_remove: "Toʻo",
     portal_add_title: "Tānaki ha akonga ʻaki ho nima",
-    portal_add_help: "Maʻá e kau ako ʻoku ʻikai lava ke nau ngāueʻaki ʻa e fononga — taipe honau fakamatala ki heni."
+    portal_add_help: "Maʻá e kau ako ʻoku ʻikai lava ke nau ngāueʻaki ʻa e fononga — taipe honau fakamatala ki heni.",
+
+    // --- Which event day is this class coming on? (see event-days.js) ---
+    label_event_day: "Ko e ʻaho fē te ke kau mai ai?",
+    error_pick_day: "Kātaki ʻo fili ʻa e ʻaho te ke kau mai ai."
   }
 };
 

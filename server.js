@@ -303,6 +303,13 @@ function validateRegistration(body) {
   }
 
   // Date must look like YYYY-MM-DD (what <input type="date"> sends).
+  //
+  // DELIBERATELY NOT restricted to the three days in public/event-days.js.
+  // The registration form only offers those three, so a teacher cannot pick
+  // anything else — but this same function also validates the admin edit
+  // form, and an admin must be able to move a class to any date (a make-up
+  // visit, a correction, a fourth day added late). Tightening this to the
+  // event days would quietly take that away. Not an oversight.
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(body.date || ''))) {
     errors.push('Visit date is required.');
   }
