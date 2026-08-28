@@ -9,10 +9,21 @@
  *  2. Provides a small REST API that the front-end calls with
  *     fetch() to read and write registration data:
  *
- *       GET    /api/registrations       → list all records
- *       POST   /api/registrations       → create a new record
- *       PUT    /api/registrations/:id   → update an existing record
- *       DELETE /api/registrations/:id   → delete a record
+ *       GET    /api/registrations       → list all records   (admin only)
+ *       POST   /api/registrations       → create a new record (public)
+ *       PUT    /api/registrations/:id   → update a record     (admin only)
+ *       DELETE /api/registrations/:id   → delete a record     (admin only)
+ *
+ * Three kinds of visitor use this API, and each gets a different level
+ * of access — this is the security model in one paragraph:
+ *
+ *   PUBLIC   anyone on the internet. Can create a registration and can
+ *            sign a student up if they hold a valid link token. Cannot
+ *            read anybody's data.
+ *   TEACHER  holds the secret token from their own shareable link. Can
+ *            see and manage ONLY their own class — no password needed,
+ *            because the unguessable token IS the credential.
+ *   ADMIN    logged in with the admin password. Can see everything.
  *
  * "REST API" just means: the front-end and back-end talk by
  * sending JSON over HTTP, using the URL to say WHICH record and
@@ -22,22 +33,168 @@
  * To stop:  Ctrl + C
  */
 
+// Read the local .env file and copy its settings into process.env.
+// This MUST run before anything else looks at process.env, which is why
+// it is the very first line of the program. Secrets (the admin password
+// hash, the cookie-signing secret) live in .env — a file that is NOT in
+// git — so they never end up in the repository. See .env.example.
+require('dotenv').config();
+
 const express = require('express');
 const path = require('path');
 const crypto = require('crypto');
 const QRCode = require('qrcode');
+const bcrypt = require('bcryptjs');           // password hashing (pure JS, no build step)
+const cookieParser = require('cookie-parser'); // reads/writes the admin session cookie
 const db = require('./db'); // our database module (creates the table on first run)
 
 const app = express();
-const PORT = 3000;
+
+// The port can be changed with PORT in .env; 3000 is the normal default.
+const PORT = Number(process.env.PORT) || 3000;
+
+// --- Admin configuration --------------------------------------------
+/**
+ * Two secrets come from .env:
+ *
+ *  ADMIN_PASSWORD_HASH — a bcrypt hash of the admin password. We store a
+ *    HASH, never the password itself, so that even someone who reads the
+ *    .env file cannot simply read the password out of it.
+ *  SESSION_SECRET — a long random string used to SIGN the login cookie.
+ *    Signing means the browser gets the cookie value plus a short
+ *    signature computed from this secret. A visitor can read or delete
+ *    their cookie, but they cannot forge a new one, because they don't
+ *    know the secret. That is what stops someone typing a fake
+ *    "I am the admin" cookie into their browser.
+ */
+const ADMIN_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH || '';
+const SESSION_SECRET = process.env.SESSION_SECRET || '';
+const ADMIN_CONFIGURED = Boolean(ADMIN_PASSWORD_HASH && SESSION_SECRET);
+
+if (!ADMIN_CONFIGURED) {
+  // A loud, unmissable warning — but NOT a crash. The public pages
+  // (home, registration, student sign-up) still need to work; only the
+  // admin dashboard is unavailable. Admin login "fails closed": with no
+  // configuration it always refuses, it never accidentally lets someone in.
+  console.warn('');
+  console.warn('  ****************************************************************');
+  console.warn('  *  WARNING: the admin dashboard is NOT configured.             *');
+  console.warn('  *                                                              *');
+  console.warn('  *  Admin login will refuse every attempt until you fix this.   *');
+  console.warn('  *  The rest of the site works normally.                        *');
+  console.warn('  *                                                              *');
+  console.warn('  *  To fix it:                                                  *');
+  console.warn('  *    1. Copy .env.example to .env                              *');
+  console.warn('  *    2. Generate a password hash:                              *');
+  console.warn('  *       node -e "console.log(require(\'bcryptjs\')' +
+               '.hashSync(process.argv[1], 10))" \'YourPassword\'   *');
+  console.warn('  *    3. Generate a session secret:                             *');
+  console.warn('  *       node -e "console.log(require(\'crypto\')' +
+               '.randomBytes(32).toString(\'hex\'))"          *');
+  console.warn('  *    4. Paste both into .env and restart the server.           *');
+  console.warn('  ****************************************************************');
+  console.warn('');
+  if (!ADMIN_PASSWORD_HASH) console.warn('  Missing: ADMIN_PASSWORD_HASH');
+  if (!SESSION_SECRET) console.warn('  Missing: SESSION_SECRET');
+  console.warn('');
+}
+
+// The name and settings of the admin login cookie, written down once so
+// that setting it (on login) and clearing it (on logout) can never drift
+// apart — a cookie is only cleared if the options match how it was set.
+const ADMIN_COOKIE_NAME = 'pou_hono_admin';
+const ADMIN_COOKIE_OPTIONS = {
+  httpOnly: true,  // JavaScript in the page cannot read it — blunts XSS cookie theft
+  signed: true,    // signed with SESSION_SECRET, so it cannot be forged
+  sameSite: 'lax', // not sent on cross-site POSTs — basic CSRF protection
+  secure: process.env.NODE_ENV === 'production', // HTTPS-only in production
+  maxAge: 8 * 60 * 60 * 1000 // 8 hours — one working day, then log in again
+};
 
 // --- Middleware ("things that run on every request") ---------------
 
 // Parse JSON request bodies, so req.body works for POST/PUT.
 app.use(express.json());
 
+// Parse cookies, including SIGNED ones. Passing the secret here is what
+// lets us read req.signedCookies later; a cookie whose signature doesn't
+// check out simply doesn't appear there at all.
+app.use(cookieParser(SESSION_SECRET));
+
 // Serve the front-end files (index.html etc.) from /public.
 app.use(express.static(path.join(__dirname, 'public')));
+
+// --- Admin authentication -------------------------------------------
+
+/**
+ * requireAdmin — a "gatekeeper" placed in front of the admin-only routes.
+ *
+ * Express middleware runs before the route handler. If the visitor has a
+ * valid signed admin cookie we call next() and the real handler runs; if
+ * not we stop right here with 401 ("Unauthorised") and the handler never
+ * sees the request. Putting the check here rather than inside each route
+ * means it is impossible to forget it on one of them.
+ */
+function requireAdmin(req, res, next) {
+  // req.signedCookies only contains cookies whose signature was valid.
+  // If the server has no SESSION_SECRET this is always empty → fails closed.
+  if (req.signedCookies && req.signedCookies[ADMIN_COOKIE_NAME] === 'admin') {
+    return next();
+  }
+  return res.status(401).json({ errors: ['Not authorised.'] });
+}
+
+/**
+ * POST /api/admin/login
+ * Body: { password }. Checks it against the bcrypt hash from .env and,
+ * if it matches, sets the signed admin cookie.
+ *
+ * Note what the responses deliberately do NOT say: a wrong password and
+ * a server with no password configured give different status codes but
+ * never reveal whether a hash exists, what it is, or how close the guess
+ * was. Attackers learn nothing from the reply except "no".
+ */
+app.post('/api/admin/login', (req, res) => {
+  if (!ADMIN_CONFIGURED) {
+    // Fail closed: no configuration means nobody gets in, ever.
+    console.warn('Admin login attempted but ADMIN_PASSWORD_HASH / SESSION_SECRET are not set.');
+    return res.status(500).json({ errors: ['Admin login is not available.'] });
+  }
+
+  const password = String(req.body?.password ?? '');
+
+  // bcrypt.compareSync re-hashes the guess with the same salt and compares
+  // the results. It is deliberately slow, which is what makes guessing
+  // passwords in bulk impractical.
+  if (!bcrypt.compareSync(password, ADMIN_PASSWORD_HASH)) {
+    return res.status(401).json({ errors: ['Incorrect password.'] });
+  }
+
+  res.cookie(ADMIN_COOKIE_NAME, 'admin', ADMIN_COOKIE_OPTIONS);
+  res.json({ ok: true });
+});
+
+/**
+ * POST /api/admin/logout
+ * Clears the admin cookie. Always succeeds — logging out when you were
+ * never logged in is harmless.
+ */
+app.post('/api/admin/logout', (req, res) => {
+  res.clearCookie(ADMIN_COOKIE_NAME, ADMIN_COOKIE_OPTIONS);
+  res.json({ ok: true });
+});
+
+/**
+ * GET /api/admin/session
+ * Says whether the caller is currently logged in. The admin page asks
+ * this on load so that refreshing the page doesn't force a fresh login.
+ */
+app.get('/api/admin/session', (req, res) => {
+  const authenticated = Boolean(
+    req.signedCookies && req.signedCookies[ADMIN_COOKIE_NAME] === 'admin'
+  );
+  res.json({ authenticated });
+});
 
 // --- Validation (FR3) -----------------------------------------------
 /**
@@ -108,8 +265,11 @@ function cleanRegistration(body) {
  * Returns every record, newest visit date first.
  * The front-end computes stats/charts/repeat-visitors from this list,
  * which keeps the API surface small for the proof of concept.
+ *
+ * ADMIN ONLY — this is the whole contact list for every school that has
+ * registered, so requireAdmin runs first.
  */
-app.get('/api/registrations', (req, res) => {
+app.get('/api/registrations', requireAdmin, (req, res) => {
   const rows = db
     .prepare('SELECT * FROM registrations ORDER BY date DESC, id DESC')
     .all();
@@ -170,8 +330,10 @@ app.post('/api/registrations', async (req, res) => {
  * Two uses from the front-end:
  *  a) Full edit from the form (all fields sent, validated).
  *  b) Attendance toggle (only { status } sent).
+ *
+ * ADMIN ONLY.
  */
-app.put('/api/registrations/:id', (req, res) => {
+app.put('/api/registrations/:id', requireAdmin, (req, res) => {
   const id = Number(req.params.id);
   const existing = db.prepare('SELECT * FROM registrations WHERE id = ?').get(id);
 
@@ -211,8 +373,10 @@ app.put('/api/registrations/:id', (req, res) => {
 /**
  * DELETE /api/registrations/:id
  * Removes a record permanently.
+ *
+ * ADMIN ONLY — deleting a class also deletes its students (ON DELETE CASCADE).
  */
-app.delete('/api/registrations/:id', (req, res) => {
+app.delete('/api/registrations/:id', requireAdmin, (req, res) => {
   const result = db
     .prepare('DELETE FROM registrations WHERE id = ?')
     .run(Number(req.params.id));
@@ -297,8 +461,12 @@ app.get('/api/walk-in-registration', (req, res) => {
 /**
  * GET /api/registrations/:id/students
  * Lists every student linked to one registration.
+ *
+ * ADMIN ONLY — these rows are children's names, ages and allergies, the
+ * most sensitive data in the system. Teachers read their OWN class through
+ * GET /api/my-registration/students instead, which is keyed by their token.
  */
-app.get('/api/registrations/:id/students', (req, res) => {
+app.get('/api/registrations/:id/students', requireAdmin, (req, res) => {
   const id = Number(req.params.id);
   const registration = db.prepare('SELECT id FROM registrations WHERE id = ?').get(id);
   if (!registration) {
@@ -365,6 +533,7 @@ app.listen(PORT, () => {
   console.log('');
   console.log('  Pou Hono is running.');
   console.log(`  Open  http://localhost:${PORT}  in your browser.`);
+  console.log(`  Admin dashboard: ${ADMIN_CONFIGURED ? 'configured.' : 'NOT configured (see the warning above).'}`);
   console.log('  Press Ctrl + C to stop the server.');
   console.log('');
 });
