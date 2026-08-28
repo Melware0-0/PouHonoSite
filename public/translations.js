@@ -86,7 +86,14 @@ const TRANSLATIONS = {
 
     // --- Which event day is this class coming on? (see event-days.js) ---
     label_event_day: "Which day are you attending?",
-    error_pick_day: "Please choose which day you are attending."
+    error_pick_day: "Please choose which day you are attending.",
+
+    // --- Will all the booked students actually attend? ---
+    label_all_attending: "Will all your students be attending?",
+    option_yes: "Yes",
+    option_no: "No",
+    label_not_attending: "How many are not attending?",
+    label_not_attending_short: "Students not attending"
   },
 
   mi: {
@@ -161,7 +168,14 @@ const TRANSLATIONS = {
 
     // --- Which event day is this class coming on? (see event-days.js) ---
     label_event_day: "Ko tēhea rā ka tae mai koe?",
-    error_pick_day: "Tēnā kōwhiria te rā ka tae mai koe."
+    error_pick_day: "Tēnā kōwhiria te rā ka tae mai koe.",
+
+    // --- Will all the booked students actually attend? ---
+    label_all_attending: "Ka tae mai āu ākonga katoa?",
+    option_yes: "Āe",
+    option_no: "Kāo",
+    label_not_attending: "Tokohia kāore e tae mai?",
+    label_not_attending_short: "Ākonga kāore e tae mai"
   },
 
   sm: {
@@ -236,7 +250,14 @@ const TRANSLATIONS = {
 
     // --- Which event day is this class coming on? (see event-days.js) ---
     label_event_day: "O le fea aso e te auai ai?",
-    error_pick_day: "Faʻamolemole filifili le aso e te auai ai."
+    error_pick_day: "Faʻamolemole filifili le aso e te auai ai.",
+
+    // --- Will all the booked students actually attend? ---
+    label_all_attending: "Pe o le a auai uma au tamaiti aʻoga?",
+    option_yes: "Ioe",
+    option_no: "Leai",
+    label_not_attending: "E toʻafia e le auai?",
+    label_not_attending_short: "Tamaiti aʻoga e le auai"
   },
 
   to: {
@@ -311,7 +332,14 @@ const TRANSLATIONS = {
 
     // --- Which event day is this class coming on? (see event-days.js) ---
     label_event_day: "Ko e ʻaho fē te ke kau mai ai?",
-    error_pick_day: "Kātaki ʻo fili ʻa e ʻaho te ke kau mai ai."
+    error_pick_day: "Kātaki ʻo fili ʻa e ʻaho te ke kau mai ai.",
+
+    // --- Will all the booked students actually attend? ---
+    label_all_attending: "ʻE kau mai kotoa hoʻo kau ako?",
+    option_yes: "ʻIo",
+    option_no: "ʻIkai",
+    label_not_attending: "ʻE toko fiha ʻe ʻikai kau mai?",
+    label_not_attending_short: "Kau ako ʻe ʻikai kau mai"
   }
 };
 

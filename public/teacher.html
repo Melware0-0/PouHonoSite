@@ -218,6 +218,7 @@
           <li><span class="detail-label" data-i18n="label_email">Email</span><span class="detail-value" id="detailEmail">—</span></li>
           <li><span class="detail-label" data-i18n="label_students">Number of students</span><span class="detail-value" id="detailStudents">—</span></li>
           <li><span class="detail-label" data-i18n="label_adults">Number of adults</span><span class="detail-value" id="detailAdults">—</span></li>
+          <li><span class="detail-label" data-i18n="label_not_attending_short">Students not attending</span><span class="detail-value" id="detailNotAttending">—</span></li>
           <li><span class="detail-label" data-i18n="label_attending_day">Event day</span><span class="detail-value" id="detailDay">—</span></li>
         </ul>
       </div>
@@ -422,6 +423,7 @@
     document.getElementById('detailEmail').textContent = reg.email;
     document.getElementById('detailStudents').textContent = reg.students;
     document.getElementById('detailAdults').textContent = reg.adults;
+    document.getElementById('detailNotAttending').textContent = reg.not_attending;
     document.getElementById('detailDay').textContent = dayLabel(reg.date);
   }
 

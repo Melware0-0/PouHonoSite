@@ -265,7 +265,7 @@ app.get('/api/admin/session', (req, res) => {
  * prepared statements further down.
  */
 const REGISTRATION_COLUMNS =
-  'id, school, contact, email, students, adults, session, date, notes, file_name, status';
+  'id, school, contact, email, students, adults, not_attending, session, date, notes, file_name, status';
 
 // --- Validation (FR3) -----------------------------------------------
 /**
@@ -302,6 +302,20 @@ function validateRegistration(body) {
     errors.push('Number of adults must be a whole number between 0 and 200.');
   }
 
+  // How many of the booked students are NOT coming. It cannot be negative,
+  // and it cannot be more than the class itself — "30 students, 40 of them
+  // not attending" is nonsense, and would make the real head count come out
+  // below zero everywhere it is worked out.
+  const notAttending = Number(body.not_attending ?? 0);
+  if (!Number.isInteger(notAttending) || notAttending < 0) {
+    errors.push('Number not attending must be a whole number of 0 or more.');
+  } else if (Number.isInteger(students) && notAttending > students) {
+    // Only worth saying once `students` is itself a sensible number —
+    // otherwise a blank student count would produce two confusing errors
+    // about the same missing answer.
+    errors.push('Number not attending cannot be more than the number of students.');
+  }
+
   // Date must look like YYYY-MM-DD (what <input type="date"> sends).
   //
   // DELIBERATELY NOT restricted to the three days in public/event-days.js.
@@ -329,6 +343,7 @@ function cleanRegistration(body) {
     email: String(body.email).trim(),
     students: Number(body.students),
     adults: Number(body.adults ?? 0),
+    not_attending: Number(body.not_attending ?? 0),
     session: String(body.session).trim(),
     date: String(body.date),
     notes: String(body.notes ?? '').trim(),
@@ -409,11 +424,11 @@ app.post('/api/registrations', createRegistrationLimiter, async (req, res) => {
   // SQL injection attacks. Never build SQL strings by hand.
   const result = db
     .prepare(`
-      INSERT INTO registrations (school, contact, email, students, adults, session, date, notes, file_name, status, token)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending', ?)
+      INSERT INTO registrations (school, contact, email, students, adults, not_attending, session, date, notes, file_name, status, token)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending', ?)
     `)
     .run(data.school, data.contact, data.email, data.students, data.adults,
-         data.session, data.date, data.notes, data.file_name, token);
+         data.not_attending, data.session, data.date, data.notes, data.file_name, token);
 
   const created = db
     .prepare(`SELECT ${REGISTRATION_COLUMNS} FROM registrations WHERE id = ?`)
@@ -479,10 +494,10 @@ app.put('/api/registrations/:id', requireAdmin, (req, res) => {
   db.prepare(`
     UPDATE registrations
     SET school = ?, contact = ?, email = ?, students = ?, adults = ?,
-        session = ?, date = ?, notes = ?, file_name = ?
+        not_attending = ?, session = ?, date = ?, notes = ?, file_name = ?
     WHERE id = ?
   `).run(data.school, data.contact, data.email, data.students, data.adults,
-         data.session, data.date, data.notes, data.file_name, id);
+         data.not_attending, data.session, data.date, data.notes, data.file_name, id);
 
   res.json(db.prepare(`SELECT ${REGISTRATION_COLUMNS} FROM registrations WHERE id = ?`).get(id));
 });
@@ -615,6 +630,7 @@ app.get('/api/my-registration', requireTeacherToken, (req, res) => {
     email: r.email,
     students: r.students,
     adults: r.adults,
+    not_attending: r.not_attending,
     session: r.session,
     date: r.date,
     notes: r.notes,

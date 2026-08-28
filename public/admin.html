@@ -282,6 +282,7 @@
                 <th>Email</th>
                 <th>Students</th>
                 <th>Adults</th>
+                <th>Not attending</th>
                 <th>Session</th>
                 <th>Event day</th>
                 <th>Status</th>
@@ -289,7 +290,7 @@
               </tr>
             </thead>
             <tbody id="tableBody">
-              <tr class="empty-row"><td colspan="9">Loading…</td></tr>
+              <tr class="empty-row"><td colspan="10">Loading…</td></tr>
             </tbody>
           </table>
         </div>
@@ -501,7 +502,7 @@
     const tbody = document.getElementById('tableBody');
 
     if (!filtered.length) {
-      tbody.innerHTML = '<tr class="empty-row"><td colspan="9">No registrations match your filters.</td></tr>';
+      tbody.innerHTML = '<tr class="empty-row"><td colspan="10">No registrations match your filters.</td></tr>';
       return;
     }
 
@@ -512,6 +513,7 @@
         <td>${escapeHtml(r.email)}</td>
         <td>${r.students}</td>
         <td>${r.adults}</td>
+        <td>${r.not_attending}</td>
         <td>${escapeHtml(r.session)}</td>
         <td>${escapeHtml(dayLabel(r.date))}</td>
         <td>

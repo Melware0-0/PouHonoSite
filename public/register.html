@@ -329,6 +329,25 @@
             </div>
           </div>
           <div class="field">
+            <label data-i18n="label_all_attending">Will all your students be attending?</label>
+            <div class="radio-group is-inline">
+              <div class="radio-row">
+                <input type="radio" id="t-attend-yes" name="all_attending" value="yes" checked>
+                <label for="t-attend-yes" data-i18n="option_yes">Yes</label>
+              </div>
+              <div class="radio-row">
+                <input type="radio" id="t-attend-no" name="all_attending" value="no">
+                <label for="t-attend-no" data-i18n="option_no">No</label>
+              </div>
+            </div>
+          </div>
+          <!-- Hidden until "No" is chosen — there is no point asking how
+               many are missing when the answer was "none of them". -->
+          <div class="field" id="notAttendingField" style="display:none;">
+            <label for="t-not-attending" data-i18n="label_not_attending">How many are not attending?</label>
+            <input type="number" id="t-not-attending" name="not_attending" min="0" max="500" value="0">
+          </div>
+          <div class="field">
             <label data-i18n="label_event_day">Which day are you attending?</label>
             <!-- The choices are built from EVENT_DAYS by the script below,
                  so this list is never written out twice. -->
@@ -496,6 +515,22 @@
     dayChoices.appendChild(row);
   });
 
+  // "Will all your students be attending?" — answering No reveals the
+  // follow-up number box. The box is not just disabled but hidden, so a
+  // teacher whose whole class is coming never has to think about it.
+  const notAttendingField = document.getElementById('notAttendingField');
+  const notAttendingInput = document.getElementById('t-not-attending');
+
+  document.querySelectorAll('input[name="all_attending"]').forEach((radio) => {
+    radio.addEventListener('change', () => {
+      const someMissing = document.getElementById('t-attend-no').checked;
+      notAttendingField.style.display = someMissing ? 'block' : 'none';
+      // Going back to "Yes" resets the number, so a figure typed and then
+      // changed your mind about cannot be submitted by accident.
+      if (!someMissing) notAttendingInput.value = '0';
+    });
+  });
+
   // Populate year group options (Year 1–13, 18+) for the manual student form.
   const yearSelect = document.getElementById('m-year');
   for (let i = 1; i <= 13; i++) {
@@ -554,6 +589,10 @@
       school: data.get('school'),
       students: Number(data.get('students')),
       adults: Number(data.get('adults') || 0),
+      // 0 whenever the answer was "yes, all of them are coming".
+      not_attending: data.get('all_attending') === 'no'
+        ? Number(data.get('not_attending') || 0)
+        : 0,
       date: chosenDay
     };
     showPanel('t2');
