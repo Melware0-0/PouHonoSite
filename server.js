@@ -434,28 +434,168 @@ function cleanStudent(body) {
   };
 }
 
+// --- Teacher access (no password — the link token IS the credential) --
+
+/**
+ * requireTeacherToken — the gatekeeper for the "manage my own class" routes.
+ *
+ * A teacher never gets an account or a password. What they get is the
+ * shareable link handed to them at registration, which contains a random
+ * UUID token. Holding that token is the proof: it is long and random
+ * enough that nobody can guess another school's, and it grants access to
+ * exactly ONE registration — the one it belongs to.
+ *
+ * The token can arrive two ways:
+ *   Authorization: Bearer <token>   — the tidy way, used by fetch() calls
+ *   ?token=<token>                  — convenient when following a link
+ *
+ * On success the whole registration row is hung on req.registration, so
+ * the route handlers below can use req.registration.id and never have to
+ * trust an id sent by the caller. That is the point: the caller says
+ * "here is my token", not "here is the class I want", so they cannot ask
+ * for someone else's class.
+ */
+function requireTeacherToken(req, res, next) {
+  const authHeader = String(req.get('authorization') || '');
+  const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
+  const token = bearerMatch ? bearerMatch[1].trim() : String(req.query.token || '').trim();
+
+  if (!token) {
+    return res.status(404).json({ errors: ['Registration link not found.'] });
+  }
+
+  const registration = db.prepare('SELECT * FROM registrations WHERE token = ?').get(token);
+  if (!registration) {
+    // Deliberately the same 404 as "no token at all": a caller probing for
+    // valid tokens learns nothing from the difference.
+    return res.status(404).json({ errors: ['Registration link not found.'] });
+  }
+
+  req.registration = registration;
+  next();
+}
+
+/**
+ * GET /api/my-registration
+ * The teacher's own registration record.
+ *
+ * The token is deliberately NOT included in the reply. The caller already
+ * has it (they just sent it), so echoing it back adds nothing and only
+ * creates one more place it can leak — into a log, a screenshot, a
+ * browser cache. Never return a secret you weren't asked for.
+ */
+app.get('/api/my-registration', requireTeacherToken, (req, res) => {
+  const r = req.registration;
+  res.json({
+    id: r.id,
+    school: r.school,
+    contact: r.contact,
+    email: r.email,
+    students: r.students,
+    adults: r.adults,
+    session: r.session,
+    date: r.date,
+    notes: r.notes,
+    file_name: r.file_name,
+    status: r.status
+  });
+});
+
+/**
+ * GET /api/my-registration/students
+ * The students signed up under the teacher's own class — and only those,
+ * because the query filters by req.registration.id, which came from the
+ * token rather than from anything the caller typed.
+ */
+app.get('/api/my-registration/students', requireTeacherToken, (req, res) => {
+  const rows = db
+    .prepare('SELECT * FROM students WHERE registration_id = ? ORDER BY created_at DESC, id DESC')
+    .all(req.registration.id);
+  res.json(rows);
+});
+
+/**
+ * POST /api/my-registration/students
+ * A teacher adding one of their own students by hand.
+ */
+app.post('/api/my-registration/students', requireTeacherToken, (req, res) => {
+  const errors = validateStudent(req.body);
+  if (errors.length) {
+    return res.status(400).json({ errors });
+  }
+
+  const data = cleanStudent(req.body);
+  const result = db
+    .prepare(`
+      INSERT INTO students (registration_id, name, age, year_group, allergies, preferred_session)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `)
+    .run(req.registration.id, data.name, data.age, data.year_group,
+         data.allergies, data.preferred_session);
+
+  res.status(201).json(db.prepare('SELECT * FROM students WHERE id = ?').get(result.lastInsertRowid));
+});
+
+/**
+ * DELETE /api/my-registration/students/:studentId
+ * Removes one student from the teacher's own class.
+ *
+ * THE IMPORTANT LINE is the registration_id check in the WHERE clause.
+ * Student ids are small sequential numbers, so a teacher could easily
+ * type /api/my-registration/students/7 for a child in a completely
+ * different school. Including "AND registration_id = ?" means such a
+ * delete simply matches no rows and changes nothing — the token only
+ * ever reaches inside its own class.
+ */
+app.delete('/api/my-registration/students/:studentId', requireTeacherToken, (req, res) => {
+  const result = db
+    .prepare('DELETE FROM students WHERE id = ? AND registration_id = ?')
+    .run(Number(req.params.studentId), req.registration.id);
+
+  if (result.changes === 0) {
+    // 404 rather than 403: we don't confirm that someone else's student exists.
+    return res.status(404).json({ errors: ['Student not found.'] });
+  }
+  res.status(204).end();
+});
+
 /**
  * GET /api/registrations/token/:token
- * Public lookup so the student self-registration page (reached via a
- * teacher's shared link) can find which registration to attach to,
- * without exposing the full registration record (email, notes, etc).
+ * PUBLIC. The student self-registration page, reached through a teacher's
+ * shared link, calls this just to show whose class the student is joining.
+ *
+ * It returns the school name and nothing else — no id, no contact, no
+ * email, no notes. A public route should hand back the smallest piece of
+ * information that does the job.
  */
 app.get('/api/registrations/token/:token', (req, res) => {
-  const reg = db.prepare('SELECT id, school FROM registrations WHERE token = ?').get(req.params.token);
+  const reg = db.prepare('SELECT school FROM registrations WHERE token = ?').get(req.params.token);
   if (!reg) {
     return res.status(404).json({ errors: ['Registration link not found.'] });
   }
-  res.json(reg);
+  res.json({ school: reg.school });
 });
 
 /**
  * GET /api/walk-in-registration
- * Returns the id of the shared "Individual / Walk-in" registration that
- * direct (no teacher link) individual sign-ups attach to.
+ * PUBLIC. Returns the TOKEN of the shared "Individual / Walk-in"
+ * registration that direct (no teacher link) sign-ups attach to.
+ *
+ * It used to return the id, and the student page then posted to an
+ * id-based route — which meant anyone could sign a student up under any
+ * class just by changing the number. Everything is keyed by token now,
+ * and this row's token is public by design: it is the shared container
+ * for walk-ins and holds no school's private data.
  */
 app.get('/api/walk-in-registration', (req, res) => {
-  const reg = db.prepare("SELECT id FROM registrations WHERE school = 'Individual / Walk-in'").get();
-  res.json(reg);
+  const reg = db
+    .prepare("SELECT token FROM registrations WHERE school = 'Individual / Walk-in'")
+    .get();
+
+  if (!reg) {
+    return res.status(404).json({ errors: ['Walk-in registration is not set up.'] });
+  }
+  res.json({ token: reg.token });
 });
 
 /**
@@ -480,18 +620,25 @@ app.get('/api/registrations/:id/students', requireAdmin, (req, res) => {
 });
 
 /**
- * POST /api/registrations/:id/students
- * Adds one student under a registration. Used by:
+ * POST /api/registrations/token/:token/students
+ * PUBLIC (but token-gated). Adds one student under a registration. Used by:
  *   a) the student self-registration page, reached via a teacher's link
- *      (id = that teacher's registration)
- *   b) a teacher adding students manually, one at a time
- *   c) a direct individual sign-up (id = the shared walk-in registration)
+ *      (token = that teacher's registration)
+ *   b) a direct individual sign-up (token = the shared walk-in registration)
+ *
+ * This REPLACES the old POST /api/registrations/:id/students. That route
+ * took a plain sequential id, so anyone could count 1, 2, 3… and post
+ * children's names and allergies into any school's class, or probe which
+ * ids existed. A token is a random UUID: you cannot guess one, and the
+ * only one you hold is your own.
  */
-app.post('/api/registrations/:id/students', (req, res) => {
-  const id = Number(req.params.id);
-  const registration = db.prepare('SELECT id FROM registrations WHERE id = ?').get(id);
+app.post('/api/registrations/token/:token/students', (req, res) => {
+  const registration = db
+    .prepare('SELECT id FROM registrations WHERE token = ?')
+    .get(req.params.token);
+
   if (!registration) {
-    return res.status(404).json({ errors: ['Registration not found.'] });
+    return res.status(404).json({ errors: ['Registration link not found.'] });
   }
 
   const errors = validateStudent(req.body);
@@ -505,7 +652,8 @@ app.post('/api/registrations/:id/students', (req, res) => {
       INSERT INTO students (registration_id, name, age, year_group, allergies, preferred_session)
       VALUES (?, ?, ?, ?, ?, ?)
     `)
-    .run(id, data.name, data.age, data.year_group, data.allergies, data.preferred_session);
+    .run(registration.id, data.name, data.age, data.year_group,
+         data.allergies, data.preferred_session);
 
   const created = db.prepare('SELECT * FROM students WHERE id = ?').get(result.lastInsertRowid);
   res.status(201).json(created);
