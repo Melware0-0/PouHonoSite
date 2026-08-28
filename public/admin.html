@@ -215,6 +215,7 @@
     <h2>Admin Access</h2>
     <p style="color:var(--text-muted); font-size:0.9rem;">Enter the admin password to continue.</p>
     <div id="gateError">Incorrect password.</div>
+    <div id="gateNotice" style="display:none; color:var(--text-muted); font-size:0.85rem; margin-bottom:8px;"></div>
     <form id="gateForm">
       <input type="password" id="gatePassword" placeholder="Password" autocomplete="off" required>
       <button type="submit" class="btn btn--primary" style="width:100%;">Enter</button>
@@ -229,7 +230,14 @@
   <main class="admin-wrap">
     <div class="admin-head">
       <h1>Admin Dashboard</h1>
-      <span style="color:var(--text-muted); font-size:0.85rem;">NZ Tech Week 2027 — SACTH &amp; The Cause Collective</span>
+      <span style="color:var(--text-muted); font-size:0.85rem;">
+        NZ Tech Week 2027 — SACTH &amp; The Cause Collective
+        &nbsp;·&nbsp;
+        <button type="button" id="logoutBtn"
+                style="background:none; border:none; padding:0; font:inherit; color:var(--green-accent); cursor:pointer; text-decoration:underline;">
+          Log out
+        </button>
+      </span>
     </div>
 
     <div class="stats-grid">
@@ -303,35 +311,120 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="/nav.js"></script>
 <script>
-  const ADMIN_PASSWORD = 'SACTH2027';
   const SESSION_COLORS = ['#2d8c4e', '#1d9e75', '#f2b705', '#e2584c', '#5b8def', '#9a6fd6'];
 
   // --- Password gate ---
+  /*
+   * The password is NOT in this file, and must never be. Anything written
+   * here is downloaded by every visitor's browser and readable with
+   * "View Source" — a password in the page is no password at all.
+   *
+   * Instead the browser posts what the user typed to /api/admin/login and
+   * the SERVER decides. On success the server sets a signed, httpOnly
+   * cookie that this JavaScript cannot even read; the browser attaches it
+   * to later requests automatically. The dashboard's data is protected by
+   * the server refusing to send it, not by this page hiding a <div>.
+   */
   const gate = document.getElementById('gate');
   const dashboard = document.getElementById('dashboard');
   const gateForm = document.getElementById('gateForm');
   const gateError = document.getElementById('gateError');
+  const gateNotice = document.getElementById('gateNotice');
 
-  function unlock() {
-    sessionStorage.setItem('pouHonoAdminUnlocked', '1');
+  function showDashboard() {
     gate.style.display = 'none';
     dashboard.style.display = 'block';
-    loadDashboard();
   }
 
-  if (sessionStorage.getItem('pouHonoAdminUnlocked') === '1') {
-    unlock();
-  }
-
-  gateForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const value = document.getElementById('gatePassword').value;
-    if (value === ADMIN_PASSWORD) {
-      unlock();
+  /** Hide the dashboard and show the login box again. */
+  function showGate(notice) {
+    dashboard.style.display = 'none';
+    gate.style.display = 'flex';
+    gateError.style.display = 'none';
+    if (notice) {
+      gateNotice.textContent = notice;
+      gateNotice.style.display = 'block';
     } else {
-      gateError.style.display = 'block';
-      setTimeout(() => { window.location.href = '/'; }, 1200);
+      gateNotice.style.display = 'none';
     }
+  }
+
+  /**
+   * Every dashboard request goes through here.
+   *
+   *  - credentials: 'same-origin' tells fetch() to send our login cookie.
+   *  - a 401 back means the session expired (or was never valid), so we
+   *    put the login box back up instead of quietly drawing an empty
+   *    dashboard, which would look like "there is no data" rather than
+   *    "you are logged out".
+   */
+  async function adminFetch(url, options) {
+    const res = await fetch(url, { ...options, credentials: 'same-origin' });
+    if (res.status === 401) {
+      showGate('Your session has expired. Please log in again.');
+      throw new Error('not authorised');
+    }
+    return res;
+  }
+
+  // On load, ask the server whether this browser is already logged in, so
+  // that refreshing the page doesn't make the user type the password again.
+  (async function checkSession() {
+    try {
+      const res = await fetch('/api/admin/session', { credentials: 'same-origin' });
+      const data = await res.json();
+      if (data.authenticated) {
+        showDashboard();
+        loadDashboard();
+      }
+    } catch (err) {
+      // Server unreachable — just leave the gate showing.
+    }
+  })();
+
+  gateForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const passwordInput = document.getElementById('gatePassword');
+    const submitBtn = gateForm.querySelector('button[type="submit"]');
+
+    gateError.style.display = 'none';
+    gateNotice.style.display = 'none';
+    submitBtn.disabled = true;
+
+    try {
+      const res = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ password: passwordInput.value })
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok) {
+        passwordInput.value = '';
+        showDashboard();
+        loadDashboard();
+      } else {
+        gateError.textContent = (data.errors && data.errors.join(' ')) || 'Incorrect password.';
+        gateError.style.display = 'block';
+      }
+    } catch (err) {
+      gateError.textContent = 'Could not reach the server. Please try again.';
+      gateError.style.display = 'block';
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
+
+  // Logging out clears the cookie on the server side, so the "back" button
+  // cannot bring the dashboard back with its data intact.
+  document.getElementById('logoutBtn').addEventListener('click', async () => {
+    try {
+      await fetch('/api/admin/logout', { method: 'POST', credentials: 'same-origin' });
+    } catch (err) {
+      // Even if the request failed, drop back to the gate.
+    }
+    showGate('You have been logged out.');
   });
 
   // --- Dashboard data ---
@@ -339,20 +432,25 @@
   let allStudents = []; // flattened, across every registration
 
   async function loadDashboard() {
-    const res = await fetch('/api/registrations');
-    const rows = await res.json();
-    allRegistrations = rows.filter((r) => r.school !== 'Individual / Walk-in');
-    const walkIn = rows.find((r) => r.school === 'Individual / Walk-in');
+    try {
+      const res = await adminFetch('/api/registrations');
+      const rows = await res.json();
+      allRegistrations = rows.filter((r) => r.school !== 'Individual / Walk-in');
+      const walkIn = rows.find((r) => r.school === 'Individual / Walk-in');
 
-    const studentLists = await Promise.all(
-      rows.map((r) => fetch(`/api/registrations/${r.id}/students`).then((res) => res.json()))
-    );
-    allStudents = studentLists.flat();
+      const studentLists = await Promise.all(
+        rows.map((r) => adminFetch(`/api/registrations/${r.id}/students`).then((res) => res.json()))
+      );
+      allStudents = studentLists.flat();
 
-    renderStats(walkIn);
-    populateSessionFilter();
-    renderTable();
-    renderChart();
+      renderStats(walkIn);
+      populateSessionFilter();
+      renderTable();
+      renderChart();
+    } catch (err) {
+      // adminFetch has already put the login gate back up on a 401.
+      // Anything else (server down) leaves the "Loading…" row in place.
+    }
   }
 
   function renderStats(walkIn) {
@@ -435,7 +533,7 @@
 
     btn.disabled = true;
     try {
-      const res = await fetch(`/api/registrations/${id}`, {
+      const res = await adminFetch(`/api/registrations/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: next })
@@ -446,6 +544,8 @@
         if (idx !== -1) allRegistrations[idx] = updated;
         renderTable();
       }
+    } catch (err) {
+      // adminFetch has already re-shown the gate on a 401.
     } finally {
       btn.disabled = false;
     }

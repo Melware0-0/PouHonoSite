@@ -276,34 +276,47 @@
     });
   });
 
-  // Work out which registration this student is signing up under:
-  //  - reached via /register/:token  -> that teacher's registration
-  //  - reached directly (/student.html) -> the shared walk-in registration
-  let registrationId = null;
+  // Work out which registration this student is signing up under. Every
+  // route below ends with a TOKEN, never a numeric id — a sequential id in
+  // the URL would let anyone sign students up under any school just by
+  // changing the number.
+  //
+  //  - reached via /register/:token     -> that teacher's token, from the URL
+  //  - reached directly (/student.html) -> the shared walk-in token, asked
+  //                                        for from the server
+  let signUpToken = null;
 
   const pathMatch = window.location.pathname.match(/^\/register\/([^/]+)$/);
-  const token = pathMatch ? pathMatch[1] : null;
+  const linkToken = pathMatch ? pathMatch[1] : null;
 
   (async function init() {
     const titleEl = document.getElementById('pageTitle');
     const subtitleEl = document.getElementById('pageSubtitle');
 
     try {
-      if (token) {
-        const res = await fetch(`/api/registrations/token/${token}`);
+      if (linkToken) {
+        // Check the link is real, and find out whose class it is. The
+        // server sends back the school name only — nothing else about the
+        // teacher's registration is public.
+        const res = await fetch(`/api/registrations/token/${linkToken}`);
         if (!res.ok) {
           showState('invalid');
           subtitleEl.textContent = '';
           return;
         }
         const reg = await res.json();
-        registrationId = reg.id;
+        signUpToken = linkToken;
         titleEl.textContent = `Register for ${reg.school}`;
         subtitleEl.textContent = `You're joining ${reg.school}'s NZ Tech Week 2027 visit — pick your session below.`;
       } else {
         const res = await fetch('/api/walk-in-registration');
+        if (!res.ok) {
+          showState('invalid');
+          subtitleEl.textContent = '';
+          return;
+        }
         const reg = await res.json();
-        registrationId = reg.id;
+        signUpToken = reg.token;
         titleEl.textContent = 'Register to attend';
         subtitleEl.textContent = "You're registering as an individual — pick your session below.";
       }
@@ -345,7 +358,7 @@
     submitBtn.textContent = 'Submitting…';
 
     try {
-      const res = await fetch(`/api/registrations/${registrationId}/students`, {
+      const res = await fetch(`/api/registrations/token/${signUpToken}/students`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)

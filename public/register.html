@@ -481,7 +481,10 @@
     submitBtn.disabled = !acceptCheckbox.checked;
   });
 
-  let registrationId = null;
+  // The teacher's own link token, taken from the shareable link the server
+  // hands back after registering. It is what lets this page add students
+  // to THIS class and no other — see the manual student form below.
+  let myToken = null;
 
   submitBtn.addEventListener('click', async () => {
     const msg = document.getElementById('teacherSubmitMessage');
@@ -506,7 +509,10 @@
       const responseData = await res.json();
 
       if (res.ok) {
-        registrationId = responseData.id;
+        // The link looks like http://host/register/<token>; the last path
+        // segment is the token. The server never sends the raw token as a
+        // field of its own — the link is the one place it belongs.
+        myToken = String(responseData.link || '').split('/').pop();
         document.getElementById('shareLink').value = responseData.link;
         document.getElementById('qrImage').src = responseData.qrCode || '';
         showPanel('t3');
@@ -581,9 +587,14 @@
     msg.className = 'message';
 
     try {
-      const res = await fetch(`/api/registrations/${registrationId}/students`, {
+      // Adding to the teacher's own class, proved by their link token in an
+      // Authorization header rather than by a class id in the URL.
+      const res = await fetch('/api/my-registration/students', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${myToken}`
+        },
         body: JSON.stringify(payload)
       });
       const responseData = await res.json();

@@ -507,9 +507,10 @@
   (async function loadCounter() {
     const el = document.getElementById('liveCount');
     try {
-      const res = await fetch('/api/registrations');
-      const rows = await res.json();
-      const total = rows.filter((r) => r.school !== 'Individual / Walk-in').length;
+      // Ask for just the number. This page is public, so it must not be
+      // fetching the full registration list — that is admin-only now.
+      const res = await fetch('/api/registrations/count');
+      const { count: total } = await res.json();
 
       let current = 0;
       const step = Math.max(1, Math.ceil(total / 30));
