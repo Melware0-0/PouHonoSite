@@ -705,9 +705,15 @@
   const manualCount = document.getElementById('manualCount');
 
   function renderManualList() {
-    manualList.innerHTML = addedStudents
-      .map((s) => `<li><span>${s.name} — ${s.year_group}</span><span>${s.preferred_session}</span></li>`)
-      .join('');
+    manualList.replaceChildren(...addedStudents.map((s) => {
+      const item = document.createElement('li');
+      const details = document.createElement('span');
+      const session = document.createElement('span');
+      details.textContent = `${s.name} — ${s.year_group}`;
+      session.textContent = s.preferred_session;
+      item.append(details, session);
+      return item;
+    }));
     manualCount.textContent = addedStudents.length
       ? `${addedStudents.length} student${addedStudents.length === 1 ? '' : 's'} added so far.`
       : '';

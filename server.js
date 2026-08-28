@@ -48,6 +48,7 @@ const bcrypt = require('bcryptjs');           // password hashing (pure JS, no b
 const cookieParser = require('cookie-parser'); // reads/writes the admin session cookie
 const rateLimit = require('express-rate-limit'); // caps how often one IP can hit a route
 const db = require('./db'); // our database module (creates the table on first run)
+const EVENT_DAYS = require('./public/event-days.js');
 
 const app = express();
 
@@ -116,6 +117,16 @@ const ADMIN_COOKIE_OPTIONS = {
 
 // Parse JSON request bodies, so req.body works for POST/PUT.
 app.use(express.json());
+
+// Express rejects malformed JSON before a route handler runs. Keep that
+// failure in the API's normal JSON shape instead of its default HTML error
+// page, which can include an internal stack trace during local development.
+app.use((err, req, res, next) => {
+  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+    return res.status(400).json({ errors: ['Request body must be valid JSON.'] });
+  }
+  next(err);
+});
 
 // Parse cookies, including SIGNED ones. Passing the secret here is what
 // lets us read req.signedCookies later; a cookie whose signature doesn't
@@ -186,7 +197,7 @@ const adminLoginLimiter = makeLimiter(15 * 60 * 1000, 10);
 function requireAdmin(req, res, next) {
   // req.signedCookies only contains cookies whose signature was valid.
   // If the server has no SESSION_SECRET this is always empty → fails closed.
-  if (req.signedCookies && req.signedCookies[ADMIN_COOKIE_NAME] === 'admin') {
+  if (ADMIN_CONFIGURED && req.signedCookies && req.signedCookies[ADMIN_COOKIE_NAME] === 'admin') {
     return next();
   }
   return res.status(401).json({ errors: ['Not authorised.'] });
@@ -197,24 +208,29 @@ function requireAdmin(req, res, next) {
  * Body: { password }. Checks it against the bcrypt hash from .env and,
  * if it matches, sets the signed admin cookie.
  *
- * Note what the responses deliberately do NOT say: a wrong password and
- * a server with no password configured give different status codes but
- * never reveal whether a hash exists, what it is, or how close the guess
- * was. Attackers learn nothing from the reply except "no".
+ * A wrong password and a server with no password configured take the same
+ * deliberately slow bcrypt path and return the same response. That avoids
+ * advertising configuration state through either status or obvious timing.
  */
 app.post('/api/admin/login', adminLoginLimiter, (req, res) => {
-  if (!ADMIN_CONFIGURED) {
-    // Fail closed: no configuration means nobody gets in, ever.
-    console.warn('Admin login attempted but ADMIN_PASSWORD_HASH / SESSION_SECRET are not set.');
-    return res.status(500).json({ errors: ['Admin login is not available.'] });
-  }
-
   const password = String(req.body?.password ?? '');
 
   // bcrypt.compareSync re-hashes the guess with the same salt and compares
   // the results. It is deliberately slow, which is what makes guessing
   // passwords in bulk impractical.
-  if (!bcrypt.compareSync(password, ADMIN_PASSWORD_HASH)) {
+  // Use a real fallback hash when configuration is missing. This keeps the
+  // failure path deliberately slow too, so status and response time do not
+  // advertise whether the server has an admin password configured.
+  const fallbackHash = '$2b$10$C6UzMDM.H6dfI/f/IKcEe.yrLq2V1D5K5M/VfN9N4C8fM.6f7l7hK';
+  let passwordMatches = false;
+  try {
+    passwordMatches = bcrypt.compareSync(password, ADMIN_CONFIGURED ? ADMIN_PASSWORD_HASH : fallbackHash);
+  } catch (err) {
+    // A malformed configured hash is configuration failure, never access.
+    console.error('Admin password hash is invalid.');
+  }
+
+  if (!ADMIN_CONFIGURED || !passwordMatches) {
     return res.status(401).json({ errors: ['Incorrect password.'] });
   }
 
@@ -239,7 +255,7 @@ app.post('/api/admin/logout', (req, res) => {
  */
 app.get('/api/admin/session', (req, res) => {
   const authenticated = Boolean(
-    req.signedCookies && req.signedCookies[ADMIN_COOKIE_NAME] === 'admin'
+    ADMIN_CONFIGURED && req.signedCookies && req.signedCookies[ADMIN_COOKIE_NAME] === 'admin'
   );
   res.json({ authenticated });
 });
@@ -276,8 +292,27 @@ const REGISTRATION_COLUMNS =
  * feedback), but the back-end MUST validate too — the server can
  * never trust what a browser sends it. This is standard practice.
  */
-function validateRegistration(body) {
+function isJsonObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function strictInteger(value) {
+  if (typeof value === 'number') return Number.isInteger(value) ? value : null;
+  if (typeof value === 'string' && /^-?\d+$/.test(value.trim())) return Number(value);
+  return null;
+}
+
+function isRealDate(value) {
+  const text = String(value || '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return false;
+  const date = new Date(`${text}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === text;
+}
+
+function validateRegistration(body, options = {}) {
   const errors = [];
+
+  if (!isJsonObject(body)) return ['Request body must be a JSON object.'];
 
   if (!body.school || !String(body.school).trim()) {
     errors.push('School name is required.');
@@ -292,13 +327,13 @@ function validateRegistration(body) {
     errors.push('A valid contact email is required.');
   }
 
-  const students = Number(body.students);
-  if (!Number.isInteger(students) || students < 1 || students > 500) {
+  const students = strictInteger(body.students);
+  if (students === null || students < 1 || students > 500) {
     errors.push('Number of students must be a whole number between 1 and 500.');
   }
 
-  const adults = Number(body.adults ?? 0);
-  if (!Number.isInteger(adults) || adults < 0 || adults > 200) {
+  const adults = body.adults === undefined ? 0 : strictInteger(body.adults);
+  if (adults === null || adults < 0 || adults > 200) {
     errors.push('Number of adults must be a whole number between 0 and 200.');
   }
 
@@ -306,10 +341,10 @@ function validateRegistration(body) {
   // and it cannot be more than the class itself — "30 students, 40 of them
   // not attending" is nonsense, and would make the real head count come out
   // below zero everywhere it is worked out.
-  const notAttending = Number(body.not_attending ?? 0);
-  if (!Number.isInteger(notAttending) || notAttending < 0) {
+  const notAttending = body.not_attending === undefined ? 0 : strictInteger(body.not_attending);
+  if (notAttending === null || notAttending < 0) {
     errors.push('Number not attending must be a whole number of 0 or more.');
-  } else if (Number.isInteger(students) && notAttending > students) {
+  } else if (students !== null && notAttending > students) {
     // Only worth saying once `students` is itself a sensible number —
     // otherwise a blank student count would produce two confusing errors
     // about the same missing answer.
@@ -318,18 +353,19 @@ function validateRegistration(body) {
 
   // Date must look like YYYY-MM-DD (what <input type="date"> sends).
   //
-  // DELIBERATELY NOT restricted to the three days in public/event-days.js.
-  // The registration form only offers those three, so a teacher cannot pick
-  // anything else — but this same function also validates the admin edit
-  // form, and an admin must be able to move a class to any date (a make-up
-  // visit, a correction, a fourth day added late). Tightening this to the
-  // event days would quietly take that away. Not an oversight.
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(body.date || ''))) {
-    errors.push('Visit date is required.');
+  // Public teacher registration is restricted to the three advertised days.
+  // An admin full edit may use another real date for a correction, make-up
+  // visit, or a fourth day added late, so that route omits eventDaysOnly.
+  if (!isRealDate(body.date)) {
+    errors.push('A valid visit date is required.');
+  } else if (options.eventDaysOnly && !EVENT_DAYS.some((day) => day.date === body.date)) {
+    errors.push('Please select one of the available event days.');
   }
 
-  if (!body.session || !String(body.session).trim()) {
+  if (typeof body.session !== 'string' || !body.session.trim()) {
     errors.push('Please select a session.');
+  } else if (options.eventDaysOnly && body.session !== 'NZ Tech Week 2027') {
+    errors.push('Please select the current event.');
   }
 
   return errors;
@@ -341,9 +377,9 @@ function cleanRegistration(body) {
     school: String(body.school).trim(),
     contact: String(body.contact).trim(),
     email: String(body.email).trim(),
-    students: Number(body.students),
-    adults: Number(body.adults ?? 0),
-    not_attending: Number(body.not_attending ?? 0),
+    students: strictInteger(body.students),
+    adults: body.adults === undefined ? 0 : strictInteger(body.adults),
+    not_attending: body.not_attending === undefined ? 0 : strictInteger(body.not_attending),
     session: String(body.session).trim(),
     date: String(body.date),
     notes: String(body.notes ?? '').trim(),
@@ -410,7 +446,7 @@ app.get('/api/registrations/count', (req, res) => {
  * teacher is about to hand out; register.html shows them both.
  */
 app.post('/api/registrations', createRegistrationLimiter, async (req, res) => {
-  const errors = validateRegistration(req.body);
+  const errors = validateRegistration(req.body, { eventDaysOnly: true });
   if (errors.length) {
     // 400 = "Bad Request": you sent me data I can't accept.
     return res.status(400).json({ errors });
@@ -473,7 +509,7 @@ app.put('/api/registrations/:id', requireAdmin, (req, res) => {
   }
 
   // Case (b): only the status is being changed (attendance toggle).
-  const keys = Object.keys(req.body);
+  const keys = isJsonObject(req.body) ? Object.keys(req.body) : [];
   if (keys.length === 1 && keys[0] === 'status') {
     if (!['Pending', 'Arrived'].includes(req.body.status)) {
       return res.status(400).json({ errors: ['Status must be Pending or Arrived.'] });
@@ -531,14 +567,16 @@ app.delete('/api/registrations/:id', requireAdmin, (req, res) => {
 function validateStudent(body) {
   const errors = [];
 
+  if (!isJsonObject(body)) return ['Request body must be a JSON object.'];
+
   if (!body.name || !String(body.name).trim()) {
     errors.push('Student name is required.');
   }
 
   const ageProvided = body.age !== undefined && body.age !== null && body.age !== '';
   if (ageProvided) {
-    const age = Number(body.age);
-    if (!Number.isInteger(age) || age < 1 || age > 25) {
+    const age = strictInteger(body.age);
+    if (age === null || age < 1 || age > 25) {
       errors.push('Age must be a whole number between 1 and 25.');
     }
   }
@@ -548,7 +586,8 @@ function validateStudent(body) {
     errors.push('Please select a valid year group.');
   }
 
-  if (!body.preferred_session || !String(body.preferred_session).trim()) {
+  const validSessions = ['Robotics', 'Gaming', 'Programming', 'Computer Building', 'Social Media'];
+  if (!validSessions.includes(String(body.preferred_session))) {
     errors.push('Please select a preferred session.');
   }
 
@@ -559,7 +598,7 @@ function cleanStudent(body) {
   const ageProvided = body.age !== undefined && body.age !== null && body.age !== '';
   return {
     name: String(body.name).trim(),
-    age: ageProvided ? Number(body.age) : null,
+    age: ageProvided ? strictInteger(body.age) : null,
     year_group: String(body.year_group).trim(),
     allergies: String(body.allergies ?? '').trim(),
     preferred_session: String(body.preferred_session).trim()
