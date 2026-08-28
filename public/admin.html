@@ -465,7 +465,10 @@
     const walkInStudentCount = walkIn
       ? allStudents.filter((s) => s.registration_id === walkIn.id).length
       : 0;
-    const totalStudents = allRegistrations.reduce((sum, r) => sum + r.students, 0) + walkInStudentCount;
+    const totalStudents = allRegistrations.reduce(
+      (sum, r) => sum + (r.students - r.not_attending),
+      0
+    ) + walkInStudentCount;
     const totalAdults = allRegistrations.reduce((sum, r) => sum + r.adults, 0);
 
     const sessionTally = {};
