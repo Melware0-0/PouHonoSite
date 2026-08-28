@@ -315,14 +315,13 @@
                 <th>Students</th>
                 <th>Adults</th>
                 <th>Not attending</th>
-                <th>Session</th>
                 <th>Event day</th>
                 <th>Status</th>
                 <th>Notes</th>
               </tr>
             </thead>
             <tbody id="tableBody">
-              <tr class="empty-row"><td colspan="10">Loading…</td></tr>
+              <tr class="empty-row"><td colspan="9">Loading…</td></tr>
             </tbody>
           </table>
         </div>
@@ -720,7 +719,7 @@
     const tbody = document.getElementById('tableBody');
 
     if (!registrations.length) {
-      tbody.innerHTML = '<tr class="empty-row"><td colspan="10">No registrations match your filters.</td></tr>';
+      tbody.innerHTML = '<tr class="empty-row"><td colspan="9">No registrations match your filters.</td></tr>';
       return;
     }
 
@@ -732,8 +731,7 @@
         <td>${r.students}</td>
         <td>${r.adults}</td>
         <td>${r.not_attending}</td>
-        <td>${escapeHtml(r.session)}</td>
-        <td>${escapeHtml(dayLabel(r.date))}</td>
+        <td>${escapeHtml(shortDay(r.date))}</td>
         <td>
           <button class="status-pill status-pill--${r.status.toLowerCase()}" data-id="${r.id}" data-status="${r.status}">
             ${r.status}
@@ -801,18 +799,49 @@
   }
 
   /**
-   * Turn a stored 'YYYY-MM-DD' date into the readable event-day label,
-   * e.g. "Day 2 — Wednesday 19 May 2027". The three days come from
-   * public/event-days.js, the one place they are written down.
+   * Turn a stored 'YYYY-MM-DD' into a short, scannable day: "Tue 18 May".
    *
-   * A date that is not one of the three falls back to showing the raw
-   * date. That matters: older rows, the seed data, and anything an admin
-   * has edited by hand can sit outside the event days, and showing the
-   * real value is far better than showing a blank or a wrong label.
+   * Why not slice it out of the EVENT_DAYS label? Because that label is the
+   * client's wording to change ("Day 1 — Tuesday 18 May 2027"). The moment
+   * we parse it, their copy-edit becomes our bug. The date column already
+   * holds the fact; the label is only ever presentation.
+   *
+   * WATCH THE TIMEZONE. `new Date('2027-05-18')` is parsed by the spec as
+   * UTC midnight, so anywhere west of Greenwich it renders as the 17th —
+   * the table would quietly show every class on the wrong day. Passing the
+   * parts as numbers builds the date in LOCAL time instead, where the 18th
+   * is the 18th no matter where the browser is.
+   *
+   * Anything that is not one of our three dates still has to show something
+   * useful: an admin can edit a row to a date outside the event, and the
+   * walk-in container row carries whatever date it was created on. We fall
+   * back to the raw stored value, and to an em dash when there is none.
    */
-  function dayLabel(date) {
-    const match = (window.EVENT_DAYS || []).find((d) => d.date === date);
-    return match ? match.label : (date || '—');
+  function shortDay(date) {
+    const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(date || ''));
+    if (!parts) return date || '—';
+
+    const [, year, month, day] = parts;
+    const d = new Date(Number(year), Number(month) - 1, Number(day));
+    if (Number.isNaN(d.getTime())) return date;
+
+    // A date like '2027-13-99' has the right SHAPE but does not exist, and
+    // the Date constructor silently rolls it forward into some other day
+    // rather than complaining. Checking the parts survived the round trip
+    // catches that, so we show the stored value as-is instead of inventing
+    // a confident-looking wrong answer. The server rejects impossible dates,
+    // so this is a belt-and-braces guard rather than an expected path.
+    if (d.getFullYear() !== Number(year) ||
+        d.getMonth() !== Number(month) - 1 ||
+        d.getDate() !== Number(day)) {
+      return date;
+    }
+
+    const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+    return `${WEEKDAYS[d.getDay()]} ${Number(day)} ${MONTHS[d.getMonth()]}`;
   }
 
   // --- Pie chart ---
