@@ -19,6 +19,12 @@ const Database = require('better-sqlite3');
 const path = require('path');
 const crypto = require('crypto');
 
+// The three event days, read from the one file that defines them
+// (public/event-days.js) rather than retyped here. The seed data below
+// dates itself off these, so if the dates change in that file the demo
+// data follows automatically instead of quietly going stale.
+const EVENT_DAYS = require('./public/event-days.js');
+
 // Open (or create) the database file next to this script.
 const db = new Database(path.join(__dirname, 'pou-hono.db'));
 
@@ -133,26 +139,57 @@ db.exec(`
  * Seed data: if the table is completely empty (first ever run),
  * insert a few example records so the app demos nicely.
  * Real data added afterwards is never touched.
+ *
+ * The seed deliberately has the same SHAPE as data the live app writes,
+ * because demo data that lies about the shape of real data is worse than
+ * no demo data at all:
+ *  - `session` on a registration is the whole-event name
+ *    ('NZ Tech Week 2027'), which is exactly what the teacher form posts.
+ *    The five things a person actually picks between — Robotics, Gaming,
+ *    Programming, Computer Building, Social Media — are per-STUDENT
+ *    choices, so they live in students.preferred_session further down.
+ *  - `date` is one of the three event days, taken from EVENT_DAYS rather
+ *    than typed out again, and the classes are spread over all three.
+ *
+ * `key` is not a database column. It is only here so the student seed
+ * below can say "put these children in the Mangere College class"
+ * without having to guess at auto-increment ids.
  */
 const rowCount = db.prepare('SELECT COUNT(*) AS n FROM registrations').get().n;
 
+// Filled in with { key: id } if — and only if — we seed on this run.
+// Left null on every later startup, which is what stops the student seed
+// from ever attaching demo children to somebody's real class.
+let seededRegistrationIds = null;
+
 if (rowCount === 0) {
   const insert = db.prepare(`
-    INSERT INTO registrations (school, contact, email, students, adults, session, date, notes, status, token)
-    VALUES (@school, @contact, @email, @students, @adults, @session, @date, @notes, @status, @token)
+    INSERT INTO registrations (school, contact, email, students, adults, not_attending, session, date, notes, status, token)
+    VALUES (@school, @contact, @email, @students, @adults, @not_attending, @session, @date, @notes, @status, @token)
   `);
 
+  const [day1, day2, day3] = EVENT_DAYS.map((d) => d.date);
+  const EVENT = 'NZ Tech Week 2027';
+
   const seedRows = [
-    { school: 'Papatoetoe Intermediate', contact: 'S. Tuilagi', email: 'office@papatoetoeint.school.nz', students: 32, adults: 3, session: 'Animation — Mon 18 May 10:00am', date: '2026-05-18', notes: '', status: 'Arrived' },
-    { school: 'Manurewa Primary', contact: 'J. Fale', email: 'admin@manurewaprimary.school.nz', students: 25, adults: 2, session: 'Music making — Tue 19 May 1:00pm', date: '2026-05-19', notes: 'Two students need wheelchair access', status: 'Arrived' },
-    { school: 'Otara Youth Group', contact: 'M. Ropati', email: 'contact@otarayouth.org.nz', students: 18, adults: 4, session: 'Coding — Wed 20 May 9:00am', date: '2026-05-20', notes: '', status: 'Pending' },
-    { school: 'Mangere College', contact: 'A. Havili', email: 'reception@mangere.school.nz', students: 40, adults: 3, session: 'Digital design — Thu 21 May 2:00pm', date: '2026-05-21', notes: 'Te reo Māori support requested', status: 'Pending' },
-    { school: 'Manurewa Primary', contact: 'J. Fale', email: 'admin@manurewaprimary.school.nz', students: 22, adults: 2, session: 'Coding — Wed 20 May 9:00am', date: '2026-05-20', notes: 'Repeat visit', status: 'Arrived' }
+    { key: 'papatoetoe', school: 'Papatoetoe Intermediate', contact: 'S. Tuilagi', email: 'office@papatoetoeint.school.nz', students: 32, adults: 3, not_attending: 2, session: EVENT, date: day1, notes: '', status: 'Arrived' },
+    { key: 'manurewa', school: 'Manurewa Primary', contact: 'J. Fale', email: 'admin@manurewaprimary.school.nz', students: 25, adults: 2, not_attending: 0, session: EVENT, date: day2, notes: 'Two students need wheelchair access', status: 'Arrived' },
+    { key: 'otara', school: 'Otara Youth Group', contact: 'M. Ropati', email: 'contact@otarayouth.org.nz', students: 18, adults: 4, not_attending: 0, session: EVENT, date: day3, notes: '', status: 'Pending' },
+    { key: 'mangere', school: 'Mangere College', contact: 'A. Havili', email: 'reception@mangere.school.nz', students: 40, adults: 3, not_attending: 3, session: EVENT, date: day1, notes: 'Te reo Māori support requested', status: 'Pending' },
+    // Same school as row 2 on purpose: the dashboard has a "repeat
+    // visitor" idea that needs one school to appear more than once.
+    { key: 'manurewa-repeat', school: 'Manurewa Primary', contact: 'J. Fale', email: 'admin@manurewaprimary.school.nz', students: 22, adults: 2, not_attending: 0, session: EVENT, date: day3, notes: 'Repeat visit', status: 'Arrived' }
   ].map((row) => ({ ...row, token: crypto.randomUUID() }));
 
   // A transaction = "do all of these inserts, or none of them".
-  const seedAll = db.transaction((rows) => rows.forEach((r) => insert.run(r)));
-  seedAll(seedRows);
+  const seedAll = db.transaction((rows) => {
+    const ids = {};
+    rows.forEach(({ key, ...row }) => {
+      ids[key] = insert.run(row).lastInsertRowid;
+    });
+    return ids;
+  });
+  seededRegistrationIds = seedAll(seedRows);
 
   console.log('Database created and seeded with example data.');
 }
@@ -165,13 +202,87 @@ if (rowCount === 0) {
  */
 const walkIn = db.prepare("SELECT id FROM registrations WHERE school = 'Individual / Walk-in'").get();
 
+// Its id, however it got here — found or just created. The student seed
+// below needs it so that the dashboard's walk-in count is not zero.
+let walkInId = walkIn ? walkIn.id : null;
+
 if (!walkIn) {
-  db.prepare(`
+  walkInId = db.prepare(`
     INSERT INTO registrations (school, contact, email, students, adults, session, date, notes, file_name, status, token)
     VALUES ('Individual / Walk-in', 'N/A', 'walkin@sacth.local', 0, 0, 'N/A', ?, 'Auto-created container for individual sign-ups not linked to a teacher.', '', 'Pending', ?)
-  `).run(new Date().toISOString().slice(0, 10), crypto.randomUUID());
+  `).run(new Date().toISOString().slice(0, 10), crypto.randomUUID()).lastInsertRowid;
 
   console.log('Created shared "Individual / Walk-in" registration for direct student sign-ups.');
+}
+
+/**
+ * Seed students — same "only on a genuinely empty table" rule as above.
+ *
+ * Two guards, not one. `seededRegistrationIds` is only set on the run
+ * that created the example classes, so demo children can never be
+ * attached to a real teacher's class on a database that already has
+ * registrations in it. The COUNT is belt-and-braces for the odd case of
+ * a half-built database.
+ *
+ * The five preferred_session values are all represented, because the
+ * admin dashboard draws a pie chart of them and picks a "most popular
+ * session" out of them — with an empty students table both of those just
+ * say "nothing yet", which demos badly. A couple of the children sit
+ * under the walk-in registration so the individual sign-up stat is
+ * non-zero too, and a few carry allergies so that column shows what it
+ * is for.
+ */
+const studentCount = db.prepare('SELECT COUNT(*) AS n FROM students').get().n;
+
+if (seededRegistrationIds && studentCount === 0) {
+  const insertStudent = db.prepare(`
+    INSERT INTO students (registration_id, name, age, year_group, allergies, preferred_session)
+    VALUES (@registration_id, @name, @age, @year_group, @allergies, @preferred_session)
+  `);
+
+  const seedStudents = [
+    // Papatoetoe Intermediate
+    { reg: 'papatoetoe', name: 'Aroha Ngata', age: 12, year_group: 'Year 7', allergies: '', preferred_session: 'Robotics' },
+    { reg: 'papatoetoe', name: 'Sione Vaka', age: 12, year_group: 'Year 8', allergies: 'Peanuts', preferred_session: 'Gaming' },
+    { reg: 'papatoetoe', name: 'Mele Latu', age: 13, year_group: 'Year 8', allergies: '', preferred_session: 'Programming' },
+    { reg: 'papatoetoe', name: 'Riya Patel', age: 12, year_group: 'Year 7', allergies: '', preferred_session: 'Robotics' },
+
+    // Manurewa Primary
+    { reg: 'manurewa', name: 'Tane Wiremu', age: 10, year_group: 'Year 6', allergies: 'Asthma — inhaler carried', preferred_session: 'Gaming' },
+    { reg: 'manurewa', name: 'Lupe Faleolo', age: 10, year_group: 'Year 6', allergies: '', preferred_session: 'Social Media' },
+    { reg: 'manurewa', name: 'Jacob Tuipulotu', age: 11, year_group: 'Year 6', allergies: '', preferred_session: 'Computer Building' },
+
+    // Otara Youth Group
+    { reg: 'otara', name: 'Anaru Rewiti', age: 15, year_group: 'Year 10', allergies: '', preferred_session: 'Programming' },
+    { reg: 'otara', name: 'Sina Tialavea', age: 14, year_group: 'Year 9', allergies: 'Dairy', preferred_session: 'Social Media' },
+    { reg: 'otara', name: 'Deshaun Kaur', age: 15, year_group: 'Year 10', allergies: '', preferred_session: 'Robotics' },
+
+    // Mangere College
+    { reg: 'mangere', name: 'Kalolaine Fifita', age: 16, year_group: 'Year 11', allergies: '', preferred_session: 'Computer Building' },
+    { reg: 'mangere', name: 'Hemi Paora', age: 17, year_group: 'Year 12', allergies: '', preferred_session: 'Programming' },
+    { reg: 'mangere', name: 'Ana Toluta’u', age: 16, year_group: 'Year 11', allergies: 'Shellfish', preferred_session: 'Gaming' },
+    { reg: 'mangere', name: 'Priya Singh', age: 17, year_group: 'Year 12', allergies: '', preferred_session: 'Social Media' },
+
+    // Manurewa Primary, second visit
+    { reg: 'manurewa-repeat', name: 'Nikau Heke', age: 11, year_group: 'Year 7', allergies: '', preferred_session: 'Robotics' },
+    { reg: 'manurewa-repeat', name: 'Talia Ropati', age: 10, year_group: 'Year 6', allergies: '', preferred_session: 'Computer Building' },
+
+    // Individual sign-ups, no teacher involved
+    { reg: 'walk-in', name: 'Josiah Leota', age: 14, year_group: 'Year 9', allergies: '', preferred_session: 'Programming' },
+    { reg: 'walk-in', name: 'Maia Thompson', age: 13, year_group: 'Year 9', allergies: 'Gluten', preferred_session: 'Gaming' }
+  ];
+
+  const seedAllStudents = db.transaction((rows) => {
+    rows.forEach(({ reg, ...row }) => {
+      insertStudent.run({
+        ...row,
+        registration_id: reg === 'walk-in' ? walkInId : seededRegistrationIds[reg]
+      });
+    });
+  });
+  seedAllStudents(seedStudents);
+
+  console.log('Seeded example students across the five sessions.');
 }
 
 module.exports = db;

@@ -772,6 +772,35 @@ app.get('/api/walk-in-registration', (req, res) => {
 });
 
 /**
+ * GET /api/admin/students
+ * Every student in the system, in one array.
+ *
+ * ADMIN ONLY — same children's data as the per-registration route below,
+ * so the same gatekeeper.
+ *
+ * WHY THIS EXISTS: the admin dashboard needs the students of every class
+ * at once (for the head-count stat, the "most popular session" stat and
+ * the pie chart). It used to get them by asking for one class at a time —
+ * one HTTP request per registration. That is fine with the five seeded
+ * rows and hopeless at the ~1,000 sign-ups the client is planning for:
+ * a thousand round trips on a single page load, all of them waiting on
+ * the same browser connection limit.
+ *
+ * One query instead of N. Each row already carries `registration_id`, so
+ * the dashboard can group them itself in memory — which is free — rather
+ * than making the network do the grouping.
+ *
+ * The ORDER BY is the same as the per-registration route so the rows
+ * arrive in the shape the dashboard has always seen: newest first.
+ */
+app.get('/api/admin/students', requireAdmin, (req, res) => {
+  const rows = db
+    .prepare('SELECT * FROM students ORDER BY created_at DESC, id DESC')
+    .all();
+  res.json(rows);
+});
+
+/**
  * GET /api/registrations/:id/students
  * Lists every student linked to one registration.
  *

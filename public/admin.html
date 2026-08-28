@@ -440,10 +440,14 @@
       allRegistrations = rows.filter((r) => r.school !== 'Individual / Walk-in');
       const walkIn = rows.find((r) => r.school === 'Individual / Walk-in');
 
-      const studentLists = await Promise.all(
-        rows.map((r) => adminFetch(`/api/registrations/${r.id}/students`).then((res) => res.json()))
-      );
-      allStudents = studentLists.flat();
+      // Every student in the system, in ONE request. This used to be one
+      // request per registration, which is invisible with five rows and
+      // fatal with a thousand — a thousand round trips before the page
+      // could draw anything. The server groups nothing: each student row
+      // carries its own registration_id, which is all the stats and the
+      // chart below ever needed.
+      const studentsRes = await adminFetch('/api/admin/students');
+      allStudents = await studentsRes.json();
 
       renderStats(walkIn);
       populateSessionFilter();
