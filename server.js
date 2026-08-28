@@ -283,6 +283,38 @@ app.get('/api/admin/session', (req, res) => {
 const REGISTRATION_COLUMNS =
   'id, school, contact, email, students, adults, not_attending, session, date, notes, file_name, status';
 
+// --- The shared "Individual / Walk-in" registration --------------------
+/**
+ * One row in `registrations` is not a school at all: it is the shared
+ * container that direct, no-teacher-involved sign-ups attach to. db.js
+ * creates it on startup, and it is recognised by its school name.
+ *
+ * That name is a magic string, and a magic string re-typed at every place
+ * that needs it is a rule that only mostly gets applied — miss one copy and
+ * that one route quietly does not check. It lives here once, with a helper
+ * to ask the question, so that every "is this the walk-in row?" test in the
+ * server agrees with every other one.
+ *
+ * WHY THE SERVER HAS TO ASK AT ALL: this row's token is deliberately
+ * PUBLIC — GET /api/walk-in-registration hands it to anybody, because the
+ * student page needs it to attach a walk-in sign-up. Every other token in
+ * the table is a secret that acts as a password. So the walk-in token must
+ * never be allowed through a door that treats "you hold the token" as
+ * "you are the teacher": that would let any visitor read and delete every
+ * individual child's name, age and allergies. Public token, public
+ * privileges only.
+ */
+const WALK_IN_SCHOOL = 'Individual / Walk-in';
+
+/**
+ * True if this registration row is the shared walk-in container.
+ * Takes a row (or anything with a `school`) and copes with being handed
+ * nothing, so callers can ask without checking for null first.
+ */
+function isWalkInRegistration(reg) {
+  return Boolean(reg) && reg.school === WALK_IN_SCHOOL;
+}
+
 // --- Validation (FR3) -----------------------------------------------
 /**
  * Checks incoming registration data and returns a list of problems.
@@ -425,8 +457,8 @@ app.get('/api/registrations', requireAdmin, (req, res) => {
  */
 app.get('/api/registrations/count', (req, res) => {
   const row = db
-    .prepare("SELECT COUNT(*) AS n FROM registrations WHERE school != 'Individual / Walk-in'")
-    .get();
+    .prepare('SELECT COUNT(*) AS n FROM registrations WHERE school != ?')
+    .get(WALK_IN_SCHOOL);
   res.json({ count: row.n });
 });
 
@@ -641,9 +673,19 @@ function requireTeacherToken(req, res, next) {
     .prepare(`SELECT ${REGISTRATION_COLUMNS} FROM registrations WHERE token = ?`)
     .get(token);
 
-  if (!registration) {
+  if (!registration || isWalkInRegistration(registration)) {
     // Deliberately the same 404 as "no token at all": a caller probing for
     // valid tokens learns nothing from the difference.
+    //
+    // The walk-in row is refused here for exactly that reason. Its token is
+    // published to anyone who asks (GET /api/walk-in-registration), so if it
+    // opened these routes, "anyone" would include anyone who wanted to list
+    // or delete every individual child's name, age and allergies. It is a
+    // public token, so it gets no teacher powers.
+    //
+    // And it is refused with the SAME reply as an unknown token, on purpose:
+    // a caller trying tokens one by one must not be able to tell "that is
+    // the walk-in one" apart from "that is not a registration at all".
     return res.status(404).json({ errors: ['Registration link not found.'] });
   }
 
@@ -801,8 +843,8 @@ app.get('/api/registrations/token/:token', (req, res) => {
  */
 app.get('/api/walk-in-registration', (req, res) => {
   const reg = db
-    .prepare("SELECT token FROM registrations WHERE school = 'Individual / Walk-in'")
-    .get();
+    .prepare('SELECT token FROM registrations WHERE school = ?')
+    .get(WALK_IN_SCHOOL);
 
   if (!reg) {
     return res.status(404).json({ errors: ['Walk-in registration is not set up.'] });
@@ -940,9 +982,28 @@ app.get('/join/:token', (req, res) => {
 });
 
 app.get('/register/:token', (req, res) => {
-  const reg = db.prepare('SELECT id FROM registrations WHERE token = ?').get(req.params.token);
+  const reg = db.prepare('SELECT school FROM registrations WHERE token = ?').get(req.params.token);
   if (!reg) {
     return res.redirect('/');
+  }
+  if (isWalkInRegistration(reg)) {
+    // There is no teacher behind the walk-in container, so there is no
+    // teacher portal for it — and its token is public, so serving one here
+    // would hand every visitor the tools for managing individual sign-ups.
+    //
+    // Note this is a 404, NOT the redirect above. The redirect is for a
+    // mistyped or expired link, which is a visitor's honest mistake and is
+    // best answered by quietly putting them back on the home page. A link to
+    // /register/<the public walk-in token> is different: nothing in this site
+    // ever produces one, so if it is being requested, either somebody built
+    // it by hand or we have a bug that generated it. Bouncing that to the
+    // home page would hide it. A 404 says plainly that this page does not
+    // exist.
+    //
+    // Plain text rather than a designed error page: the site has no 404
+    // page of its own, and inventing one is a bigger change than this fix
+    // needs. The status code is the part that matters.
+    return res.status(404).type('text').send('Not found.');
   }
   res.sendFile('teacher.html', { root: PUBLIC_DIR });
 });
