@@ -7,6 +7,11 @@
  * starting draft only — get them checked by someone fluent in each
  * language before this goes in front of real users, especially given
  * SACTH and The Cause Collective's Māori and Pasifika community.
+ *
+ * That warning covers the newer strings too — the teacher-portal
+ * (portal_*) strings used by teacher.html, and the event-day and
+ * "will all students attend" strings on the registration form. Every one
+ * of them is unreviewed AI output in mi/sm/to and needs the same check.
  */
 const TRANSLATIONS = {
   en: {
@@ -58,7 +63,37 @@ const TRANSLATIONS = {
     label_your_name: "Your name",
     btn_submit_registration: "Submit registration",
     success_title: "You're all set!",
-    btn_register_another: "Register another student"
+    btn_register_another: "Register another student",
+
+    // --- Teacher portal (teacher.html) + the two links on step 3 ---
+    step3_student_link_title: "1. Student link — give this to your students",
+    step3_student_link_help: "Students who open this link (or scan the QR code) add their own details to your class.",
+    step3_portal_link_title: "2. Your portal link — bookmark this, don't share it",
+    step3_portal_link_help: "Bookmark this to come back and manage your class: see who has signed up, add students by hand, and find the student link again. Anyone with this link can manage your class, so keep it to yourself.",
+    btn_open_portal: "Open my portal",
+    portal_title: "Your class portal",
+    portal_invalid_text: "This portal link isn't valid or may have expired. Check the link you bookmarked, or register your class again from the registration page.",
+    portal_details_title: "Class details",
+    portal_details_help: "These are the details you gave us when you registered. Contact us if anything needs changing.",
+    label_attending_day: "Event day",
+    portal_share_title: "Student link",
+    portal_share_help: "Give this link or QR code to your students so they can add their own details to your class. It is not the same as the link you are on now — keep this page's address to yourself.",
+    portal_students_title: "Students registered so far",
+    portal_loading: "Loading…",
+    btn_remove: "Remove",
+    portal_add_title: "Add a student by hand",
+    portal_add_help: "For students who cannot use the link themselves — type their details in here.",
+
+    // --- Which event day is this class coming on? (see event-days.js) ---
+    label_event_day: "Which day are you attending?",
+    error_pick_day: "Please choose which day you are attending.",
+
+    // --- Will all the booked students actually attend? ---
+    label_all_attending: "Will all your students be attending?",
+    option_yes: "Yes",
+    option_no: "No",
+    label_not_attending: "How many are not attending?",
+    label_not_attending_short: "Students not attending"
   },
 
   mi: {
@@ -110,7 +145,37 @@ const TRANSLATIONS = {
     label_your_name: "Tō ingoa",
     btn_submit_registration: "Tukuna te rēhitatanga",
     success_title: "Kua rite koe!",
-    btn_register_another: "Rēhita anō he ākonga"
+    btn_register_another: "Rēhita anō he ākonga",
+
+    // --- Teacher portal (teacher.html) + the two links on step 3 ---
+    step3_student_link_title: "1. Hono ākonga — hoatu tēnei ki āu ākonga",
+    step3_student_link_help: "Ka tāpirihia e ngā ākonga e whakatuwhera ana i tēnei hono (e karapa ana rānei i te waehere QR) ō rātou anō taipitopito ki tō akomanga.",
+    step3_portal_link_title: "2. Tō hono tomokanga — tohua tēnei, kaua e tohatoha",
+    step3_portal_link_help: "Tohua tēnei kia hoki mai ai koe ki te whakahaere i tō akomanga: kia kite ko wai kua rēhita, ki te tāpiri ākonga ā-ringa, ki te rapu anō hoki i te hono ākonga. Ka taea e te tangata whai i tēnei hono te whakahaere i tō akomanga, nō reira puritia māu anake.",
+    btn_open_portal: "Whakatuwheratia taku tomokanga",
+    portal_title: "Tō tomokanga akomanga",
+    portal_invalid_text: "Kāore tēnei hono tomokanga i te whai mana, kua pahemo rānei pea. Tirohia te hono i tohua e koe, rēhitatia anō rānei tō akomanga mai i te whārangi rēhita.",
+    portal_details_title: "Taipitopito akomanga",
+    portal_details_help: "Koinei ngā taipitopito i hoatu e koe i tō rēhitatanga. Whakapā mai ki a mātou mēnā he mea hei whakarerekē.",
+    label_attending_day: "Rā o te huihuinga",
+    portal_share_title: "Hono ākonga",
+    portal_share_help: "Hoatu tēnei hono, tēnei waehere QR rānei ki āu ākonga kia tāpiri ai rātou i ō rātou anō taipitopito ki tō akomanga. Ehara i te mea he rite ki te hono kei runga koe ināianei — puritia te wāhitau o tēnei whārangi māu anake.",
+    portal_students_title: "Ngā ākonga kua rēhita",
+    portal_loading: "E uta ana…",
+    btn_remove: "Tangohia",
+    portal_add_title: "Tāpirihia he ākonga ā-ringa",
+    portal_add_help: "Mō ngā ākonga kāore e taea te whakamahi i te hono — patohia ō rātou taipitopito ki konei.",
+
+    // --- Which event day is this class coming on? (see event-days.js) ---
+    label_event_day: "Ko tēhea rā ka tae mai koe?",
+    error_pick_day: "Tēnā kōwhiria te rā ka tae mai koe.",
+
+    // --- Will all the booked students actually attend? ---
+    label_all_attending: "Ka tae mai āu ākonga katoa?",
+    option_yes: "Āe",
+    option_no: "Kāo",
+    label_not_attending: "Tokohia kāore e tae mai?",
+    label_not_attending_short: "Ākonga kāore e tae mai"
   },
 
   sm: {
@@ -162,7 +227,37 @@ const TRANSLATIONS = {
     label_your_name: "Lou igoa",
     btn_submit_registration: "Tuuina atu le lesitala",
     success_title: "Ua uma ona saunia oe!",
-    btn_register_another: "Toe lesitala se isi tamaititi aʻoga"
+    btn_register_another: "Toe lesitala se isi tamaititi aʻoga",
+
+    // --- Teacher portal (teacher.html) + the two links on step 3 ---
+    step3_student_link_title: "1. Soʻoga a tamaiti aʻoga — tuu lenei i au tamaiti aʻoga",
+    step3_student_link_help: "O tamaiti aʻoga e tatala lenei soʻoga (pe sikani le pepa QR) e latou te faʻaopoopoina a latou lava faʻamatalaga i lau vasega.",
+    step3_portal_link_title: "2. Lau soʻoga faletalimalo — faamau lenei, aua le faʻasoaina",
+    step3_portal_link_help: "Faamau lenei ina ia e toe foʻi mai e pulea lau vasega: vaai poo ai ua lesitala, faʻaopoopo tamaiti aʻoga lima, ma toe maua le soʻoga a tamaiti aʻoga. E mafai e soo se tasi e iai lenei soʻoga ona pulea lau vasega, o lea ia e taofia mo oe lava.",
+    btn_open_portal: "Tatala laʻu faletalimalo",
+    portal_title: "Lau faletalimalo o le vasega",
+    portal_invalid_text: "E le aoga lenei soʻoga faletalimalo pe atonu ua muta. Siaki le soʻoga na e faamauina, pe toe lesitala lau vasega mai le itulau lesitala.",
+    portal_details_title: "Faʻamatalaga o le vasega",
+    portal_details_help: "O faʻamatalaga nei na e tuuina mai ina ua e lesitala. Faʻafesoʻotaʻi i matou pe afai e iai se mea e manaʻomia ona suia.",
+    label_attending_day: "Aso o le mea",
+    portal_share_title: "Soʻoga a tamaiti aʻoga",
+    portal_share_help: "Tuu lenei soʻoga poʻo le pepa QR i au tamaiti aʻoga ina ia mafai ona latou faʻaopoopoina a latou lava faʻamatalaga i lau vasega. E le tutusa ma le soʻoga o loʻo e iai nei — ia taofia le tuatusi o lenei itulau mo oe lava.",
+    portal_students_title: "Tamaiti aʻoga ua lesitala",
+    portal_loading: "Utaina…",
+    btn_remove: "Aveese",
+    portal_add_title: "Faʻaopoopo se tamaititi aʻoga i le lima",
+    portal_add_help: "Mo tamaiti aʻoga e le mafai ona faʻaaogaina le soʻoga i latou lava — lomi a latou faʻamatalaga iinei.",
+
+    // --- Which event day is this class coming on? (see event-days.js) ---
+    label_event_day: "O le fea aso e te auai ai?",
+    error_pick_day: "Faʻamolemole filifili le aso e te auai ai.",
+
+    // --- Will all the booked students actually attend? ---
+    label_all_attending: "Pe o le a auai uma au tamaiti aʻoga?",
+    option_yes: "Ioe",
+    option_no: "Leai",
+    label_not_attending: "E toʻafia e le auai?",
+    label_not_attending_short: "Tamaiti aʻoga e le auai"
   },
 
   to: {
@@ -214,7 +309,37 @@ const TRANSLATIONS = {
     label_your_name: "Ho hingoa",
     btn_submit_registration: "Tuku atu ʻa e lesisita",
     success_title: "Kuo mateuteu koe!",
-    btn_register_another: "Toe lesisita ha akonga"
+    btn_register_another: "Toe lesisita ha akonga",
+
+    // --- Teacher portal (teacher.html) + the two links on step 3 ---
+    step3_student_link_title: "1. Fononga ki he kau ako — ʻoange ʻeni ki hoʻo kau ako",
+    step3_student_link_help: "Ko e kau ako ʻoku nau fakaava ʻa e fononga ni (pe siʻaki ʻa e kōuti QR) te nau tānaki honau fakamatala ʻanautolu ki hoʻo kalasi.",
+    step3_portal_link_title: "2. Ko hoʻo fononga matapā — fakaʻilonga ʻeni, ʻoua ʻe vahevahe",
+    step3_portal_link_help: "Fakaʻilonga ʻeni ke ke toe foki mai ʻo puleʻi hoʻo kalasi: sio pe ko hai kuo lesisita, tānaki kau ako ʻaki ho nima, pea toe ʻilo ʻa e fononga ki he kau ako. Ko ha taha pē ʻoku maʻu ʻa e fononga ni ʻe lava ke ne puleʻi hoʻo kalasi, ko ia ai tauhi maʻau pē.",
+    btn_open_portal: "Fakaava ʻeku matapā",
+    portal_title: "Ko hoʻo matapā kalasi",
+    portal_invalid_text: "ʻOku ʻikai ngofua pe kuo ʻosi ʻa e taimi ʻo e fononga matapā ni. Vakai ʻa e fononga naʻa ke fakaʻilongaʻi, pe toe lesisita hoʻo kalasi mei he peesi lesisita.",
+    portal_details_title: "Fakamatala ʻo e kalasi",
+    portal_details_help: "Ko e ngaahi fakamatala ʻeni naʻa ke ʻomai ʻi hoʻo lesisita. Fetuʻutaki mai kapau ʻoku ʻi ai ha meʻa ʻoku fiemaʻu ke liliu.",
+    label_attending_day: "ʻAho ʻo e meʻa",
+    portal_share_title: "Fononga ki he kau ako",
+    portal_share_help: "ʻOange ʻa e fononga ni pe kōuti QR ki hoʻo kau ako ke nau lava ʻo tānaki honau fakamatala ʻanautolu ki hoʻo kalasi. ʻOku ʻikai tatau ia mo e fononga ʻoku ke ʻi ai he taimi ni — tauhi ʻa e tuʻasila ʻo e peesi ni maʻau pē.",
+    portal_students_title: "Kau ako kuo lesisita",
+    portal_loading: "Fakaheka…",
+    btn_remove: "Toʻo",
+    portal_add_title: "Tānaki ha akonga ʻaki ho nima",
+    portal_add_help: "Maʻá e kau ako ʻoku ʻikai lava ke nau ngāueʻaki ʻa e fononga — taipe honau fakamatala ki heni.",
+
+    // --- Which event day is this class coming on? (see event-days.js) ---
+    label_event_day: "Ko e ʻaho fē te ke kau mai ai?",
+    error_pick_day: "Kātaki ʻo fili ʻa e ʻaho te ke kau mai ai.",
+
+    // --- Will all the booked students actually attend? ---
+    label_all_attending: "ʻE kau mai kotoa hoʻo kau ako?",
+    option_yes: "ʻIo",
+    option_no: "ʻIkai",
+    label_not_attending: "ʻE toko fiha ʻe ʻikai kau mai?",
+    label_not_attending_short: "Kau ako ʻe ʻikai kau mai"
   }
 };
 

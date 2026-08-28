@@ -42,8 +42,14 @@ db.pragma('foreign_keys = ON');
  *               For this proof of concept we store just the filename;
  *               storing the actual file is a documented future step.
  *  - token:     unique id (crypto.randomUUID()) generated per registration,
- *               used to build the shareable /register/:token link + QR
- *               code that students use to self-register under this class.
+ *               used to build the shareable /join/:token link + QR code
+ *               that students use to self-register under this class. The
+ *               same token also opens the teacher's own /register/:token
+ *               portal for managing the class.
+ *  - not_attending:
+ *               of the `students` booked for, how many will NOT be coming
+ *               after all. 0 means "all of them are". Also added by the
+ *               ALTER TABLE below, for databases created before it existed.
  */
 db.exec(`
   CREATE TABLE IF NOT EXISTS registrations (
@@ -53,6 +59,7 @@ db.exec(`
     email     TEXT    NOT NULL,
     students  INTEGER NOT NULL,
     adults    INTEGER NOT NULL DEFAULT 0,
+    not_attending INTEGER NOT NULL DEFAULT 0,
     session   TEXT    NOT NULL,
     date      TEXT    NOT NULL,
     notes     TEXT    DEFAULT '',
@@ -62,6 +69,45 @@ db.exec(`
     token     TEXT    UNIQUE
   )
 `);
+
+/**
+ * Adding a column to a table that already exists.
+ *
+ * CREATE TABLE IF NOT EXISTS above only runs on a brand-new database. If
+ * pou-hono.db already exists from an earlier version of the app, that
+ * statement does nothing at all — so a column added to it later would
+ * never appear on anybody's existing database. The fix is an ALTER TABLE.
+ *
+ * ALTER TABLE ADD COLUMN throws if the column is already there, and this
+ * file runs on EVERY startup, so it has to be "idempotent": safe to run
+ * over and over, doing the work only the first time. PRAGMA table_info
+ * lists the columns a table actually has right now, so we look for the
+ * column and only add it when it is genuinely missing.
+ *
+ * The payoff is that an existing database upgrades itself in place —
+ * nobody has to delete pou-hono.db and lose real registrations. On a
+ * brand-new database the column is already in the CREATE TABLE above, so
+ * this quietly does nothing, which is exactly what we want.
+ *
+ *  - not_attending: of the `students` a teacher booked for, how many will
+ *    NOT be coming after all. Defaults to 0, which is both the common case
+ *    and the right answer for every row that existed before this column
+ *    did. The actual head count is students - not_attending.
+ */
+function addColumnIfMissing(table, column, definition) {
+  const columns = db.pragma(`table_info(${table})`);
+  const exists = columns.some((c) => c.name === column);
+
+  if (!exists) {
+    // The table and column names here are written by us, never by a
+    // visitor — which is why they can be part of the SQL string. Values
+    // from outside must still always go through "?" placeholders.
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+    console.log(`Database upgraded: added ${table}.${column}.`);
+  }
+}
+
+addColumnIfMissing('registrations', 'not_attending', 'INTEGER NOT NULL DEFAULT 0');
 
 /**
  * Individual student sign-ups, always linked to a registration:

@@ -265,7 +265,7 @@ app.get('/api/admin/session', (req, res) => {
  * prepared statements further down.
  */
 const REGISTRATION_COLUMNS =
-  'id, school, contact, email, students, adults, session, date, notes, file_name, status';
+  'id, school, contact, email, students, adults, not_attending, session, date, notes, file_name, status';
 
 // --- Validation (FR3) -----------------------------------------------
 /**
@@ -302,7 +302,28 @@ function validateRegistration(body) {
     errors.push('Number of adults must be a whole number between 0 and 200.');
   }
 
+  // How many of the booked students are NOT coming. It cannot be negative,
+  // and it cannot be more than the class itself — "30 students, 40 of them
+  // not attending" is nonsense, and would make the real head count come out
+  // below zero everywhere it is worked out.
+  const notAttending = Number(body.not_attending ?? 0);
+  if (!Number.isInteger(notAttending) || notAttending < 0) {
+    errors.push('Number not attending must be a whole number of 0 or more.');
+  } else if (Number.isInteger(students) && notAttending > students) {
+    // Only worth saying once `students` is itself a sensible number —
+    // otherwise a blank student count would produce two confusing errors
+    // about the same missing answer.
+    errors.push('Number not attending cannot be more than the number of students.');
+  }
+
   // Date must look like YYYY-MM-DD (what <input type="date"> sends).
+  //
+  // DELIBERATELY NOT restricted to the three days in public/event-days.js.
+  // The registration form only offers those three, so a teacher cannot pick
+  // anything else — but this same function also validates the admin edit
+  // form, and an admin must be able to move a class to any date (a make-up
+  // visit, a correction, a fourth day added late). Tightening this to the
+  // event days would quietly take that away. Not an oversight.
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(body.date || ''))) {
     errors.push('Visit date is required.');
   }
@@ -322,6 +343,7 @@ function cleanRegistration(body) {
     email: String(body.email).trim(),
     students: Number(body.students),
     adults: Number(body.adults ?? 0),
+    not_attending: Number(body.not_attending ?? 0),
     session: String(body.session).trim(),
     date: String(body.date),
     notes: String(body.notes ?? '').trim(),
@@ -375,10 +397,17 @@ app.get('/api/registrations/count', (req, res) => {
 /**
  * POST /api/registrations
  * Creates a new record (a teacher's class). New records always start as
- * 'Pending'. Also generates a unique token, the shareable /register/:token
+ * 'Pending'. Also generates a unique token, the shareable /join/:token
  * link built from it, and a QR code image (data URL) for that link — so
  * the teacher can hand it to their students to self-register.
  * Responds with the created record plus { link, qrCode }.
+ *
+ * NOTE ON THE TWO LINKS: the same token opens two different pages.
+ *   /join/<token>      → the STUDENT sign-up page. This is `link` below,
+ *                        the one that goes in the QR code and gets shared.
+ *   /register/<token>  → the TEACHER's own portal for managing the class.
+ * Only the student link is built here, because that is the one the
+ * teacher is about to hand out; register.html shows them both.
  */
 app.post('/api/registrations', createRegistrationLimiter, async (req, res) => {
   const errors = validateRegistration(req.body);
@@ -395,11 +424,11 @@ app.post('/api/registrations', createRegistrationLimiter, async (req, res) => {
   // SQL injection attacks. Never build SQL strings by hand.
   const result = db
     .prepare(`
-      INSERT INTO registrations (school, contact, email, students, adults, session, date, notes, file_name, status, token)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending', ?)
+      INSERT INTO registrations (school, contact, email, students, adults, not_attending, session, date, notes, file_name, status, token)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending', ?)
     `)
     .run(data.school, data.contact, data.email, data.students, data.adults,
-         data.session, data.date, data.notes, data.file_name, token);
+         data.not_attending, data.session, data.date, data.notes, data.file_name, token);
 
   const created = db
     .prepare(`SELECT ${REGISTRATION_COLUMNS} FROM registrations WHERE id = ?`)
@@ -409,7 +438,7 @@ app.post('/api/registrations', createRegistrationLimiter, async (req, res) => {
   // not from the row we just read back — which is why `created` can safely
   // leave the token column out. The teacher gets the link and the QR code;
   // the raw token is never a field of its own in the reply.
-  const link = `${req.protocol}://${req.get('host')}/register/${token}`;
+  const link = `${req.protocol}://${req.get('host')}/join/${token}`;
 
   let qrCode = null;
   try {
@@ -465,10 +494,10 @@ app.put('/api/registrations/:id', requireAdmin, (req, res) => {
   db.prepare(`
     UPDATE registrations
     SET school = ?, contact = ?, email = ?, students = ?, adults = ?,
-        session = ?, date = ?, notes = ?, file_name = ?
+        not_attending = ?, session = ?, date = ?, notes = ?, file_name = ?
     WHERE id = ?
   `).run(data.school, data.contact, data.email, data.students, data.adults,
-         data.session, data.date, data.notes, data.file_name, id);
+         data.not_attending, data.session, data.date, data.notes, data.file_name, id);
 
   res.json(db.prepare(`SELECT ${REGISTRATION_COLUMNS} FROM registrations WHERE id = ?`).get(id));
 });
@@ -601,12 +630,48 @@ app.get('/api/my-registration', requireTeacherToken, (req, res) => {
     email: r.email,
     students: r.students,
     adults: r.adults,
+    not_attending: r.not_attending,
     session: r.session,
     date: r.date,
     notes: r.notes,
     file_name: r.file_name,
     status: r.status
   });
+});
+
+/**
+ * GET /api/my-registration/qr
+ * The teacher's student share link and a QR code image of it, so the
+ * teacher portal can show them again long after registration day.
+ *
+ * Why ask the server for the QR code rather than drawing it in the page?
+ * Because the browser would need a whole QR-drawing library downloaded on
+ * every visit to redraw something the server already knows how to make.
+ * The `qrcode` package is here on the server anyway (POST /api/registrations
+ * uses it), so this route is a handful of lines and the page stays a plain
+ * <img>. Fewer moving parts, nothing extra to load.
+ *
+ * The token itself is still not sent as a field — it only ever appears
+ * inside the link, exactly as it does at registration time.
+ */
+app.get('/api/my-registration/qr', requireTeacherToken, async (req, res) => {
+  // Read the token back the same way requireTeacherToken did. We cannot use
+  // req.registration for this, because that row deliberately leaves the
+  // token column out — and the link needs the token in it.
+  const authHeader = String(req.get('authorization') || '');
+  const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
+  const token = bearerMatch ? bearerMatch[1].trim() : String(req.query.token || '').trim();
+
+  const link = `${req.protocol}://${req.get('host')}/join/${token}`;
+
+  let qrCode = null;
+  try {
+    qrCode = await QRCode.toDataURL(link);
+  } catch (err) {
+    console.error('QR code generation failed:', err.message);
+  }
+
+  res.json({ link, qrCode });
 });
 
 /**
@@ -767,20 +832,51 @@ app.post('/api/registrations/token/:token/students', studentSignUpLimiter, (req,
   res.status(201).json(created);
 });
 
-// --- Shared link page ---------------------------------------------------
+// --- Token link pages ---------------------------------------------------
 /**
- * GET /register/:token
- * A teacher's QR code / shared link points here. If the token is valid,
- * serves the student self-registration page (which reads the token back
- * out of the URL to know which registration to attach new students to).
- * Unknown tokens just bounce back to the home page.
+ * One token, two doors. Which page you land on depends on the path, and
+ * that split is the whole point:
+ *
+ *   /join/:token      the STUDENT self-registration page. This is the
+ *                     address in the QR code and in the link the teacher
+ *                     hands out — students only ever need to add
+ *                     themselves, so it is all they are shown.
+ *
+ *   /register/:token  the TEACHER's own portal for that class: who has
+ *                     signed up so far, the share link and QR code again,
+ *                     and a form to type a student in by hand.
+ *
+ * Both are PUBLIC pages with no login, because holding the token IS the
+ * credential. That is not an oversight — see requireTeacherToken above.
+ * Nothing sensitive lives in the HTML itself either way: the pages are
+ * empty shells that ask the API for data, and the API checks the token.
+ *
+ * A token that matches no registration bounces back to the home page
+ * rather than showing a broken page — usually a mistyped or old link.
  */
+
+// Both routes send the file with { root: PUBLIC_DIR } rather than one long
+// absolute path. It reads the same, but it is the safer form: sendFile
+// refuses to serve anything with a "dotfile" segment in it, and a project
+// checked out under a folder whose name begins with a dot (a git worktree,
+// for instance) would make every absolute path look like one and 404.
+// Naming the root separately keeps that check on the filename only.
+const PUBLIC_DIR = path.join(__dirname, 'public');
+
+app.get('/join/:token', (req, res) => {
+  const reg = db.prepare('SELECT id FROM registrations WHERE token = ?').get(req.params.token);
+  if (!reg) {
+    return res.redirect('/');
+  }
+  res.sendFile('student.html', { root: PUBLIC_DIR });
+});
+
 app.get('/register/:token', (req, res) => {
   const reg = db.prepare('SELECT id FROM registrations WHERE token = ?').get(req.params.token);
   if (!reg) {
     return res.redirect('/');
   }
-  res.sendFile(path.join(__dirname, 'public', 'student.html'));
+  res.sendFile('teacher.html', { root: PUBLIC_DIR });
 });
 
 // --- Start ------------------------------------------------------------

@@ -1,0 +1,569 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Class Portal — Pou Hono | SACTH NZ Tech Week</title>
+<meta name="description" content="Manage your class registration for SACTH's NZ Tech Week 2027 event.">
+<link rel="stylesheet" href="/styles.css">
+<style>
+  .page-head {
+    text-align: center;
+    padding: 64px 20px 24px;
+  }
+
+  .page-head h1 { font-size: clamp(1.8rem, 4vw, 2.4rem); }
+  .page-head p { color: var(--text-muted); max-width: 560px; margin: 0 auto; }
+
+  .wrap-narrow {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 0 20px 100px;
+  }
+
+  .card {
+    background: var(--bg-alt);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 32px;
+    margin-bottom: 20px;
+  }
+
+  .card h2 { font-size: 1.15rem; margin-bottom: 4px; }
+  .card h3 { font-size: 1rem; margin-bottom: 4px; }
+
+  .state { display: none; }
+  .state.is-active { display: block; }
+
+  .help-text {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    line-height: 1.5;
+    margin: 0 0 16px;
+  }
+
+  /* --- Class details, shown as label / value rows --- */
+  .detail-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .detail-list li {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.9rem;
+  }
+
+  .detail-list li:last-child { border-bottom: none; }
+  .detail-list .detail-label { color: var(--text-muted); }
+  .detail-list .detail-value { font-weight: 600; text-align: right; }
+
+  /* --- Share link + QR --- */
+  .qr-wrap {
+    display: flex;
+    justify-content: center;
+    margin: 20px 0;
+  }
+
+  .qr-wrap img {
+    background: #fff;
+    padding: 12px;
+    border-radius: var(--radius-sm);
+    width: 180px;
+    height: 180px;
+  }
+
+  .link-row {
+    display: flex;
+    gap: 8px;
+  }
+
+  .link-row input {
+    flex: 1;
+    color: var(--text-muted);
+  }
+
+  .link-row button { white-space: nowrap; }
+
+  /* --- Student list --- */
+  .table-scroll { overflow-x: auto; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; min-width: 620px; }
+
+  th, td {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  td.wrap-cell { white-space: normal; max-width: 200px; }
+
+  th {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .empty-row td {
+    text-align: center;
+    color: var(--text-muted);
+    padding: 24px;
+    white-space: normal;
+  }
+
+  .remove-btn {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--error);
+    padding: 4px 10px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+  }
+
+  .remove-btn:hover:not(:disabled) { border-color: var(--error); }
+  .remove-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* --- Add-student form --- */
+  .field { margin-bottom: 20px; }
+  .field-row { display: flex; gap: 16px; }
+  .field-row .field { flex: 1; }
+
+  label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 6px; }
+
+  input, select, textarea {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    color: var(--text);
+    font-size: 0.95rem;
+    font-family: inherit;
+  }
+
+  input:focus, select:focus, textarea:focus {
+    outline: none;
+    border-color: var(--green-accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+
+  .message {
+    display: none;
+    margin-bottom: 20px;
+    padding: 12px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 0.9rem;
+    line-height: 1.5;
+  }
+
+  .message.show { display: block; }
+
+  .message--success {
+    background: var(--success-bg);
+    color: var(--success);
+    border: 1px solid rgba(45, 140, 78, 0.4);
+  }
+
+  .message--error {
+    background: var(--error-bg);
+    color: var(--error);
+    border: 1px solid rgba(226, 88, 76, 0.4);
+  }
+
+  .success-icon { font-size: 2.6rem; text-align: center; margin-bottom: 8px; }
+  .center { text-align: center; }
+</style>
+</head>
+<body>
+
+<div id="site-nav"></div>
+
+<main>
+  <div class="page-head reveal is-visible">
+    <h1 data-i18n="portal_title">Your class portal</h1>
+    <!-- Filled in with the school name once the class loads, so it is not
+         a data-i18n string: a later language switch must not wipe it. -->
+    <p id="portalSubtitle">Loading…</p>
+  </div>
+
+  <div class="wrap-narrow">
+
+    <!-- Invalid / expired portal link -->
+    <div class="card state" id="state-invalid">
+      <div class="success-icon" aria-hidden="true">😕</div>
+      <h2 class="center" data-i18n="invalid_title">Link not found</h2>
+      <p class="center help-text" data-i18n="portal_invalid_text">This portal link isn't valid or may have expired. Check the link you bookmarked, or register your class again from the registration page.</p>
+      <a class="btn btn--primary" href="/register.html" style="display:block; text-align:center;" data-i18n="btn_go_to_registration">Go to Registration</a>
+    </div>
+
+    <!-- The portal itself -->
+    <div class="state" id="state-portal">
+
+      <!-- 1. Class details -->
+      <div class="card">
+        <h2 data-i18n="portal_details_title">Class details</h2>
+        <p class="help-text" data-i18n="portal_details_help">These are the details you gave us when you registered. Contact us if anything needs changing.</p>
+        <ul class="detail-list">
+          <li><span class="detail-label" data-i18n="label_school">School name</span><span class="detail-value" id="detailSchool">—</span></li>
+          <li><span class="detail-label" data-i18n="label_fullname">Full name</span><span class="detail-value" id="detailContact">—</span></li>
+          <li><span class="detail-label" data-i18n="label_email">Email</span><span class="detail-value" id="detailEmail">—</span></li>
+          <li><span class="detail-label" data-i18n="label_students">Number of students</span><span class="detail-value" id="detailStudents">—</span></li>
+          <li><span class="detail-label" data-i18n="label_adults">Number of adults</span><span class="detail-value" id="detailAdults">—</span></li>
+          <li><span class="detail-label" data-i18n="label_not_attending_short">Students not attending</span><span class="detail-value" id="detailNotAttending">—</span></li>
+          <li><span class="detail-label" data-i18n="label_attending_day">Event day</span><span class="detail-value" id="detailDay">—</span></li>
+        </ul>
+      </div>
+
+      <!-- 2. The student share link -->
+      <div class="card">
+        <h2 data-i18n="portal_share_title">Student link</h2>
+        <p class="help-text" data-i18n="portal_share_help">Give this link or QR code to your students so they can add their own details to your class. It is not the same as the link you are on now — keep this page's address to yourself.</p>
+
+        <div class="qr-wrap">
+          <img id="qrImage" alt="QR code linking to the student registration page">
+        </div>
+
+        <div class="link-row">
+          <input type="text" id="shareLink" readonly>
+          <button type="button" class="btn btn--outline" id="copyLinkBtn" data-i18n="btn_copy">Copy</button>
+        </div>
+      </div>
+
+      <!-- 3. Who has signed up so far -->
+      <div class="card">
+        <h2 data-i18n="portal_students_title">Students registered so far</h2>
+        <p class="help-text" id="studentCount"></p>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th data-i18n="label_student_name">Student name</th>
+                <th data-i18n="label_year_group">Year group</th>
+                <th data-i18n="label_age">Age</th>
+                <th data-i18n="label_allergies">Allergies / health conditions</th>
+                <th data-i18n="label_preferred_session">Preferred session</th>
+                <th data-i18n="btn_remove">Remove</th>
+              </tr>
+            </thead>
+            <tbody id="studentTableBody">
+              <tr class="empty-row"><td colspan="6" data-i18n="portal_loading">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div id="listMessage" class="message" role="status" style="margin-top:16px; margin-bottom:0;"></div>
+      </div>
+
+      <!-- 4. Add a student by hand -->
+      <div class="card">
+        <h2 data-i18n="portal_add_title">Add a student by hand</h2>
+        <p class="help-text" data-i18n="portal_add_help">For students who cannot use the link themselves — type their details in here.</p>
+
+        <form id="addStudentForm" novalidate>
+          <div class="field">
+            <label for="a-name" data-i18n="label_student_name">Student name</label>
+            <input type="text" id="a-name" name="name" required>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label for="a-age" data-i18n="label_age">Age</label>
+              <input type="number" id="a-age" name="age" min="1" max="25">
+            </div>
+            <div class="field">
+              <label for="a-year" data-i18n="label_year_group">Year group</label>
+              <select id="a-year" name="year_group" required>
+                <option value="" disabled selected data-i18n="option_select_year">Select year group</option>
+              </select>
+            </div>
+          </div>
+          <div class="field">
+            <label for="a-allergies"><span data-i18n="label_allergies">Allergies / health conditions</span> <span style="color:var(--text-muted); font-weight:400;" data-i18n="label_optional">(optional)</span></label>
+            <textarea id="a-allergies" name="allergies" rows="2"></textarea>
+          </div>
+          <div class="field">
+            <label for="a-session" data-i18n="label_preferred_session">Preferred session</label>
+            <select id="a-session" name="preferred_session" required>
+              <option value="" disabled selected data-i18n="option_select_session">Select a session</option>
+              <option value="Robotics" data-i18n="session_robotics">Robotics</option>
+              <option value="Gaming" data-i18n="session_gaming">Gaming</option>
+              <option value="Programming" data-i18n="session_programming">Programming</option>
+              <option value="Computer Building" data-i18n="session_computer_building">Computer Building</option>
+              <option value="Social Media" data-i18n="session_social_media">Social Media</option>
+            </select>
+          </div>
+          <div id="addMessage" class="message" role="status"></div>
+          <button type="submit" class="btn btn--primary" style="width:100%;" data-i18n="btn_add_student">Add student</button>
+        </form>
+      </div>
+
+      <a class="btn btn--outline" href="/" style="display:block; text-align:center;" data-i18n="btn_done_home">Done — back to Home</a>
+    </div>
+
+  </div>
+</main>
+
+<div id="site-footer"></div>
+
+<script src="/event-days.js"></script>
+<script src="/translations.js"></script>
+<script src="/nav.js"></script>
+<script>
+  /*
+   * teacher.html — the teacher's own portal for one class.
+   *
+   * There is no password here, and that is deliberate. The address of this
+   * page is /register/<token>, and that token is a random UUID the server
+   * generated when the class registered. Knowing it IS the proof of who you
+   * are: nobody can guess it, and it opens exactly one class. Every request
+   * below sends the same token back to the API, which looks up the class
+   * from the token rather than trusting any id typed into the page.
+   *
+   * That also means this page holds nothing secret in its HTML. It is an
+   * empty shell that asks the API for everything and draws what comes back.
+   */
+
+  const states = {
+    invalid: document.getElementById('state-invalid'),
+    portal: document.getElementById('state-portal')
+  };
+
+  function showState(key) {
+    Object.values(states).forEach((s) => s.classList.remove('is-active'));
+    states[key].classList.add('is-active');
+  }
+
+  // The token is the last path segment of /register/<token>.
+  const pathMatch = window.location.pathname.match(/^\/register\/([^/]+)$/);
+  const token = pathMatch ? pathMatch[1] : null;
+
+  // Every API call from this page carries the token. Bearer header rather
+  // than ?token= wherever we can, because query strings end up in browser
+  // history and server logs far more readily than headers do.
+  function authHeaders(extra) {
+    return { ...(extra || {}), 'Authorization': `Bearer ${token}` };
+  }
+
+  // Populate year group options (Year 1–13, 18+), same list the other forms use.
+  const yearSelect = document.getElementById('a-year');
+  for (let i = 1; i <= 13; i++) {
+    const opt = document.createElement('option');
+    opt.value = `Year ${i}`;
+    opt.textContent = `Year ${i}`;
+    yearSelect.appendChild(opt);
+  }
+  const opt18 = document.createElement('option');
+  opt18.value = '18+';
+  opt18.textContent = '18+';
+  yearSelect.appendChild(opt18);
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  /** Look up the human label for a stored date, e.g. "Day 1 — Tuesday 18 May 2027". */
+  function dayLabel(date) {
+    const days = window.EVENT_DAYS || [];
+    const match = days.find((d) => d.date === date);
+    // Fall back to the raw date, so a class booked on some other day (an
+    // admin edit, or an older row) still shows something truthful.
+    return match ? match.label : (date || '—');
+  }
+
+  // --- Load everything ------------------------------------------------
+  (async function init() {
+    if (!token) {
+      showState('invalid');
+      document.getElementById('portalSubtitle').textContent = '';
+      return;
+    }
+
+    try {
+      const [regRes, qrRes] = await Promise.all([
+        fetch('/api/my-registration', { headers: authHeaders() }),
+        fetch('/api/my-registration/qr', { headers: authHeaders() })
+      ]);
+
+      if (!regRes.ok) {
+        showState('invalid');
+        document.getElementById('portalSubtitle').textContent = '';
+        return;
+      }
+
+      const reg = await regRes.json();
+      renderDetails(reg);
+
+      if (qrRes.ok) {
+        const qr = await qrRes.json();
+        document.getElementById('shareLink').value = qr.link || '';
+        document.getElementById('qrImage').src = qr.qrCode || '';
+      }
+
+      showState('portal');
+      loadStudents();
+    } catch (err) {
+      showState('invalid');
+      document.getElementById('portalSubtitle').textContent = '';
+    }
+  })();
+
+  function renderDetails(reg) {
+    document.getElementById('portalSubtitle').textContent = reg.school;
+    document.getElementById('detailSchool').textContent = reg.school;
+    document.getElementById('detailContact').textContent = reg.contact;
+    document.getElementById('detailEmail').textContent = reg.email;
+    document.getElementById('detailStudents').textContent = reg.students;
+    document.getElementById('detailAdults').textContent = reg.adults;
+    document.getElementById('detailNotAttending').textContent = reg.not_attending;
+    document.getElementById('detailDay').textContent = dayLabel(reg.date);
+  }
+
+  // --- The student list -----------------------------------------------
+  async function loadStudents() {
+    const tbody = document.getElementById('studentTableBody');
+    try {
+      const res = await fetch('/api/my-registration/students', { headers: authHeaders() });
+      if (!res.ok) {
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="6">Could not load your students.</td></tr>';
+        return;
+      }
+      renderStudents(await res.json());
+    } catch (err) {
+      tbody.innerHTML = '<tr class="empty-row"><td colspan="6">Could not reach the server.</td></tr>';
+    }
+  }
+
+  function renderStudents(students) {
+    const tbody = document.getElementById('studentTableBody');
+    const count = document.getElementById('studentCount');
+
+    if (!students.length) {
+      tbody.innerHTML = '<tr class="empty-row"><td colspan="6">No students have signed up yet.</td></tr>';
+      count.textContent = '';
+      return;
+    }
+
+    count.textContent = `${students.length} student${students.length === 1 ? '' : 's'} signed up so far.`;
+
+    // escapeHtml on every value: these are names and free-typed allergy
+    // notes. Dropping them straight into innerHTML would let anything that
+    // looks like a tag run as part of this page.
+    tbody.innerHTML = students.map((s) => `
+      <tr>
+        <td>${escapeHtml(s.name)}</td>
+        <td>${escapeHtml(s.year_group)}</td>
+        <td>${s.age === null || s.age === undefined ? '—' : s.age}</td>
+        <td class="wrap-cell">${escapeHtml(s.allergies || '—')}</td>
+        <td>${escapeHtml(s.preferred_session)}</td>
+        <td><button type="button" class="remove-btn" data-id="${s.id}">Remove</button></td>
+      </tr>
+    `).join('');
+
+    tbody.querySelectorAll('.remove-btn').forEach((btn) => {
+      btn.addEventListener('click', () => removeStudent(btn));
+    });
+  }
+
+  async function removeStudent(btn) {
+    if (!window.confirm('Remove this student from your class?')) return;
+
+    const msg = document.getElementById('listMessage');
+    msg.className = 'message';
+    btn.disabled = true;
+
+    try {
+      const res = await fetch(`/api/my-registration/students/${btn.dataset.id}`, {
+        method: 'DELETE',
+        headers: authHeaders()
+      });
+
+      if (res.ok) {
+        loadStudents();
+      } else {
+        msg.textContent = 'Could not remove that student. Please refresh and try again.';
+        msg.classList.add('show', 'message--error');
+        btn.disabled = false;
+      }
+    } catch (err) {
+      msg.textContent = 'Could not reach the server. Please try again.';
+      msg.classList.add('show', 'message--error');
+      btn.disabled = false;
+    }
+  }
+
+  // --- Copy the student link ------------------------------------------
+  document.getElementById('copyLinkBtn').addEventListener('click', async () => {
+    const input = document.getElementById('shareLink');
+    input.select();
+    try {
+      await navigator.clipboard.writeText(input.value);
+      const btn = document.getElementById('copyLinkBtn');
+      const original = btn.textContent;
+      btn.textContent = 'Copied!';
+      setTimeout(() => { btn.textContent = original; }, 1500);
+    } catch (err) {
+      // Clipboard permission denied — the text is still selected for manual copy.
+    }
+  });
+
+  // --- Add a student by hand -------------------------------------------
+  document.getElementById('addStudentForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      return;
+    }
+
+    const data = new FormData(form);
+    const payload = {
+      name: data.get('name'),
+      age: data.get('age') || null,
+      year_group: data.get('year_group'),
+      allergies: data.get('allergies') || '',
+      preferred_session: data.get('preferred_session')
+    };
+
+    const msg = document.getElementById('addMessage');
+    msg.className = 'message';
+
+    const submitBtn = form.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+
+    try {
+      const res = await fetch('/api/my-registration/students', {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(payload)
+      });
+      const responseData = await res.json();
+
+      if (res.ok) {
+        form.reset();
+        msg.textContent = `${responseData.name} added.`;
+        msg.classList.add('show', 'message--success');
+        loadStudents();
+      } else {
+        const errors = (responseData.errors && responseData.errors.join(' ')) || 'Something went wrong.';
+        msg.textContent = errors;
+        msg.classList.add('show', 'message--error');
+      }
+    } catch (err) {
+      msg.textContent = 'Could not reach the server. Please try again.';
+      msg.classList.add('show', 'message--error');
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>

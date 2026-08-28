@@ -281,12 +281,17 @@
   // the URL would let anyone sign students up under any school just by
   // changing the number.
   //
-  //  - reached via /register/:token     -> that teacher's token, from the URL
+  //  - reached via /join/:token         -> that teacher's token, from the URL
   //  - reached directly (/student.html) -> the shared walk-in token, asked
   //                                        for from the server
+  //
+  // The student link is /join/<token>. The teacher's own /register/<token>
+  // portal uses the SAME token but a different page, so this page must only
+  // recognise /join/ — landing here from /register/ would show a student
+  // the teacher's tools.
   let signUpToken = null;
 
-  const pathMatch = window.location.pathname.match(/^\/register\/([^/]+)$/);
+  const pathMatch = window.location.pathname.match(/^\/join\/([^/]+)$/);
   const linkToken = pathMatch ? pathMatch[1] : null;
 
   (async function init() {

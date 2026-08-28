@@ -282,14 +282,15 @@
                 <th>Email</th>
                 <th>Students</th>
                 <th>Adults</th>
+                <th>Not attending</th>
                 <th>Session</th>
-                <th>Date</th>
+                <th>Event day</th>
                 <th>Status</th>
                 <th>Notes</th>
               </tr>
             </thead>
             <tbody id="tableBody">
-              <tr class="empty-row"><td colspan="9">Loading…</td></tr>
+              <tr class="empty-row"><td colspan="10">Loading…</td></tr>
             </tbody>
           </table>
         </div>
@@ -309,6 +310,7 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="/event-days.js"></script>
 <script src="/nav.js"></script>
 <script>
   const SESSION_COLORS = ['#2d8c4e', '#1d9e75', '#f2b705', '#e2584c', '#5b8def', '#9a6fd6'];
@@ -500,7 +502,7 @@
     const tbody = document.getElementById('tableBody');
 
     if (!filtered.length) {
-      tbody.innerHTML = '<tr class="empty-row"><td colspan="9">No registrations match your filters.</td></tr>';
+      tbody.innerHTML = '<tr class="empty-row"><td colspan="10">No registrations match your filters.</td></tr>';
       return;
     }
 
@@ -511,8 +513,9 @@
         <td>${escapeHtml(r.email)}</td>
         <td>${r.students}</td>
         <td>${r.adults}</td>
+        <td>${r.not_attending}</td>
         <td>${escapeHtml(r.session)}</td>
-        <td>${escapeHtml(r.date)}</td>
+        <td>${escapeHtml(dayLabel(r.date))}</td>
         <td>
           <button class="status-pill status-pill--${r.status.toLowerCase()}" data-id="${r.id}" data-status="${r.status}">
             ${r.status}
@@ -559,6 +562,21 @@
     const div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
+  }
+
+  /**
+   * Turn a stored 'YYYY-MM-DD' date into the readable event-day label,
+   * e.g. "Day 2 — Wednesday 19 May 2027". The three days come from
+   * public/event-days.js, the one place they are written down.
+   *
+   * A date that is not one of the three falls back to showing the raw
+   * date. That matters: older rows, the seed data, and anything an admin
+   * has edited by hand can sit outside the event days, and showing the
+   * real value is far better than showing a blank or a wrong label.
+   */
+  function dayLabel(date) {
+    const match = (window.EVENT_DAYS || []).find((d) => d.date === date);
+    return match ? match.label : (date || '—');
   }
 
   // --- Pie chart ---

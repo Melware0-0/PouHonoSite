@@ -151,6 +151,29 @@
   .checkbox-row input { width: auto; margin-top: 3px; }
   .checkbox-row label { font-weight: 500; margin: 0; }
 
+  /* --- Radio groups (event day, will-all-attend) --- */
+  .radio-group { display: flex; flex-direction: column; gap: 8px; }
+
+  .radio-group.is-inline { flex-direction: row; gap: 20px; }
+
+  .radio-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .radio-row input { width: auto; margin: 0; }
+  .radio-row label { font-weight: 500; margin: 0; }
+
+  .field-error {
+    display: none;
+    color: var(--error);
+    font-size: 0.85rem;
+    margin-top: 8px;
+  }
+
+  .field-error.show { display: block; }
+
   /* --- Success / share --- */
   .success-icon { font-size: 2.6rem; text-align: center; margin-bottom: 8px; }
   .card h2 { text-align: center; }
@@ -183,6 +206,15 @@
 
   .link-row button {
     white-space: nowrap;
+  }
+
+  .card h3 { margin-top: 4px; margin-bottom: 4px; font-size: 1rem; }
+
+  .link-help {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    line-height: 1.5;
+    margin: 0 0 10px;
   }
 
   .divider {
@@ -296,6 +328,32 @@
               <input type="number" id="t-adults" name="adults" min="0" max="200" value="0">
             </div>
           </div>
+          <div class="field">
+            <label data-i18n="label_all_attending">Will all your students be attending?</label>
+            <div class="radio-group is-inline">
+              <div class="radio-row">
+                <input type="radio" id="t-attend-yes" name="all_attending" value="yes" checked>
+                <label for="t-attend-yes" data-i18n="option_yes">Yes</label>
+              </div>
+              <div class="radio-row">
+                <input type="radio" id="t-attend-no" name="all_attending" value="no">
+                <label for="t-attend-no" data-i18n="option_no">No</label>
+              </div>
+            </div>
+          </div>
+          <!-- Hidden until "No" is chosen — there is no point asking how
+               many are missing when the answer was "none of them". -->
+          <div class="field" id="notAttendingField" style="display:none;">
+            <label for="t-not-attending" data-i18n="label_not_attending">How many are not attending?</label>
+            <input type="number" id="t-not-attending" name="not_attending" min="0" max="500" value="0">
+          </div>
+          <div class="field">
+            <label data-i18n="label_event_day">Which day are you attending?</label>
+            <!-- The choices are built from EVENT_DAYS by the script below,
+                 so this list is never written out twice. -->
+            <div class="radio-group" id="dayChoices"></div>
+            <p class="field-error" id="dayError" data-i18n="error_pick_day">Please choose which day you are attending.</p>
+          </div>
           <div class="actions">
             <button type="button" class="btn btn--outline" id="teacher1Back" data-i18n="btn_back">Back</button>
             <button type="submit" class="btn btn--primary" data-i18n="btn_continue">Continue</button>
@@ -340,6 +398,9 @@
         <h2 data-i18n="step3_title">You're registered!</h2>
         <p class="center" data-i18n="step3_share_text">Share this link with your students so they can register their own details and choose their sessions.</p>
 
+        <h3 data-i18n="step3_student_link_title">1. Student link — give this to your students</h3>
+        <p class="link-help" data-i18n="step3_student_link_help">Students who open this link (or scan the QR code) add their own details to your class.</p>
+
         <div class="qr-wrap">
           <img id="qrImage" alt="QR code linking to the student registration page">
         </div>
@@ -347,6 +408,18 @@
         <div class="link-row">
           <input type="text" id="shareLink" readonly>
           <button type="button" class="btn btn--outline" id="copyLinkBtn" data-i18n="btn_copy">Copy</button>
+        </div>
+
+        <h3 data-i18n="step3_portal_link_title">2. Your portal link — bookmark this, don't share it</h3>
+        <p class="link-help" data-i18n="step3_portal_link_help">Bookmark this to come back and manage your class: see who has signed up, add students by hand, and find the student link again. Anyone with this link can manage your class, so keep it to yourself.</p>
+
+        <div class="link-row">
+          <input type="text" id="portalLink" readonly>
+          <button type="button" class="btn btn--outline" id="copyPortalBtn" data-i18n="btn_copy">Copy</button>
+        </div>
+
+        <div style="text-align:center; margin-bottom: 8px;">
+          <a class="btn btn--primary" id="openPortalBtn" href="#" data-i18n="btn_open_portal">Open my portal</a>
         </div>
 
         <hr class="divider">
@@ -408,6 +481,7 @@
 
 <div id="site-footer"></div>
 
+<script src="/event-days.js"></script>
 <script src="/translations.js"></script>
 <script src="/nav.js"></script>
 <script>
@@ -423,6 +497,39 @@
     panels[key].classList.add('is-active');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
+
+  // Build the "which day" choices from the single EVENT_DAYS list, so that
+  // changing the dates is a one-file edit (see public/event-days.js).
+  const dayChoices = document.getElementById('dayChoices');
+  (window.EVENT_DAYS || []).forEach((day, i) => {
+    const id = `t-day-${i}`;
+    const row = document.createElement('div');
+    row.className = 'radio-row';
+    row.innerHTML =
+      `<input type="radio" id="${id}" name="event_day" value="${day.date}">` +
+      `<label for="${id}"></label>`;
+    // The label text is set with textContent, not dropped into the HTML
+    // string above, so a stray character in a date label can never be
+    // read as markup.
+    row.querySelector('label').textContent = day.label;
+    dayChoices.appendChild(row);
+  });
+
+  // "Will all your students be attending?" — answering No reveals the
+  // follow-up number box. The box is not just disabled but hidden, so a
+  // teacher whose whole class is coming never has to think about it.
+  const notAttendingField = document.getElementById('notAttendingField');
+  const notAttendingInput = document.getElementById('t-not-attending');
+
+  document.querySelectorAll('input[name="all_attending"]').forEach((radio) => {
+    radio.addEventListener('change', () => {
+      const someMissing = document.getElementById('t-attend-no').checked;
+      notAttendingField.style.display = someMissing ? 'block' : 'none';
+      // Going back to "Yes" resets the number, so a figure typed and then
+      // changed your mind about cannot be submitted by accident.
+      if (!someMissing) notAttendingInput.value = '0';
+    });
+  });
 
   // Populate year group options (Year 1–13, 18+) for the manual student form.
   const yearSelect = document.getElementById('m-year');
@@ -461,13 +568,32 @@
       form.reportValidity();
       return;
     }
+
     const data = new FormData(form);
+
+    // The day is a required choice, but a group of radio buttons has no
+    // browser-built "you must pick one" message the way a required text
+    // box does, so we check it ourselves and show our own message.
+    const dayError = document.getElementById('dayError');
+    const chosenDay = data.get('event_day');
+    if (!chosenDay) {
+      dayError.classList.add('show');
+      document.getElementById('dayChoices').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    dayError.classList.remove('show');
+
     teacherDetails = {
       contact: data.get('contact'),
       email: data.get('email'),
       school: data.get('school'),
       students: Number(data.get('students')),
-      adults: Number(data.get('adults') || 0)
+      adults: Number(data.get('adults') || 0),
+      // 0 whenever the answer was "yes, all of them are coming".
+      not_attending: data.get('all_attending') === 'no'
+        ? Number(data.get('not_attending') || 0)
+        : 0,
+      date: chosenDay
     };
     showPanel('t2');
   });
@@ -492,11 +618,14 @@
     submitBtn.disabled = true;
     submitBtn.textContent = 'Registering…';
 
-    const today = new Date().toISOString().slice(0, 10);
+    // `date` comes from teacherDetails — the day the teacher picked in
+    // step 1. It used to be today's date, which recorded when someone
+    // filled the form in rather than when they are actually coming.
+    // `session` stays as it is: the event name was never the thing that
+    // was missing, the day was.
     const payload = {
       ...teacherDetails,
       session: 'NZ Tech Week 2027',
-      date: today,
       notes: ''
     };
 
@@ -509,12 +638,22 @@
       const responseData = await res.json();
 
       if (res.ok) {
-        // The link looks like http://host/register/<token>; the last path
+        // The link looks like http://host/join/<token>; the last path
         // segment is the token. The server never sends the raw token as a
         // field of its own — the link is the one place it belongs.
         myToken = String(responseData.link || '').split('/').pop();
+
+        // The same token opens two different pages, and the teacher needs
+        // both: /join/<token> to hand to students, /register/<token> to come
+        // back to themselves. The server only builds the student one (it is
+        // the one in the QR code), so we build the portal one here by
+        // swapping the path segment.
+        const portalUrl = `${window.location.origin}/register/${myToken}`;
+
         document.getElementById('shareLink').value = responseData.link;
         document.getElementById('qrImage').src = responseData.qrCode || '';
+        document.getElementById('portalLink').value = portalUrl;
+        document.getElementById('openPortalBtn').href = portalUrl;
         showPanel('t3');
       } else {
         const errors = (responseData.errors && responseData.errors.join(' ')) || 'Something went wrong. Please try again.';
@@ -532,19 +671,26 @@
   });
 
   // --- Teacher step 3: copy link, manual student add ---
-  document.getElementById('copyLinkBtn').addEventListener('click', async () => {
-    const input = document.getElementById('shareLink');
-    input.select();
-    try {
-      await navigator.clipboard.writeText(input.value);
-      const btn = document.getElementById('copyLinkBtn');
-      const original = btn.textContent;
-      btn.textContent = 'Copied!';
-      setTimeout(() => { btn.textContent = original; }, 1500);
-    } catch (err) {
-      // Clipboard permission denied — the text is still selected for manual copy.
-    }
-  });
+  // There are two links to copy now, so the behaviour lives in one function
+  // that both buttons reuse rather than being written out twice.
+  function wireCopyButton(buttonId, inputId) {
+    const btn = document.getElementById(buttonId);
+    btn.addEventListener('click', async () => {
+      const input = document.getElementById(inputId);
+      input.select();
+      try {
+        await navigator.clipboard.writeText(input.value);
+        const original = btn.textContent;
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = original; }, 1500);
+      } catch (err) {
+        // Clipboard permission denied — the text is still selected for manual copy.
+      }
+    });
+  }
+
+  wireCopyButton('copyLinkBtn', 'shareLink');
+  wireCopyButton('copyPortalBtn', 'portalLink');
 
   const manualToggleBtn = document.getElementById('manualToggleBtn');
   const manualSection = document.getElementById('manualSection');
