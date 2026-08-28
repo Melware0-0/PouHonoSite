@@ -199,6 +199,14 @@ if (rowCount === 0) {
  * without a teacher's link (see students table comment above). Created
  * once and reused — checked on every startup so it self-heals on an
  * existing database that predates this feature.
+ *
+ * The school name below is what identifies this row for the rest of the
+ * program. server.js holds it as the constant WALK_IN_SCHOOL and does all
+ * of its "is this the walk-in row?" checks through that — including the
+ * security check that stops this row's public token being used as a
+ * teacher's password. This file cannot import that constant (server.js
+ * requires db.js, so the arrow only points one way), so if you ever change
+ * the name, change it in both places or the checks stop matching.
  */
 const walkIn = db.prepare("SELECT id FROM registrations WHERE school = 'Individual / Walk-in'").get();
 
