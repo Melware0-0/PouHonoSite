@@ -196,6 +196,29 @@ app.get('/api/admin/session', (req, res) => {
   res.json({ authenticated });
 });
 
+// --- Which registration columns are safe to send back ----------------
+/**
+ * Every column of the registrations table EXCEPT `token`.
+ *
+ * `SELECT *` is convenient but dangerous: the moment someone adds a
+ * sensitive column to the table, every route using `*` starts quietly
+ * publishing it, and nobody notices. Listing the columns means a new
+ * column is private until somebody deliberately adds it here.
+ *
+ * `token` is left out because it is a credential. Anyone holding a
+ * class's token can read that class's students, so it must never appear
+ * in an API reply. The one place it legitimately reaches the outside
+ * world is inside the shareable link (and the QR code of that link)
+ * returned once, to the teacher, at the moment they register.
+ *
+ * NOTE: this is a fixed string written by us, never anything a visitor
+ * sent — that is why it is safe to drop into the SQL below. Real VALUES
+ * must still always go through "?" placeholders. See the note on
+ * prepared statements further down.
+ */
+const REGISTRATION_COLUMNS =
+  'id, school, contact, email, students, adults, session, date, notes, file_name, status';
+
 // --- Validation (FR3) -----------------------------------------------
 /**
  * Checks incoming registration data and returns a list of problems.
@@ -271,7 +294,7 @@ function cleanRegistration(body) {
  */
 app.get('/api/registrations', requireAdmin, (req, res) => {
   const rows = db
-    .prepare('SELECT * FROM registrations ORDER BY date DESC, id DESC')
+    .prepare(`SELECT ${REGISTRATION_COLUMNS} FROM registrations ORDER BY date DESC, id DESC`)
     .all();
   res.json(rows);
 });
@@ -306,9 +329,13 @@ app.post('/api/registrations', async (req, res) => {
          data.session, data.date, data.notes, data.file_name, token);
 
   const created = db
-    .prepare('SELECT * FROM registrations WHERE id = ?')
+    .prepare(`SELECT ${REGISTRATION_COLUMNS} FROM registrations WHERE id = ?`)
     .get(result.lastInsertRowid);
 
+  // The link is built from the `token` variable we generated a moment ago,
+  // not from the row we just read back — which is why `created` can safely
+  // leave the token column out. The teacher gets the link and the QR code;
+  // the raw token is never a field of its own in the reply.
   const link = `${req.protocol}://${req.get('host')}/register/${token}`;
 
   let qrCode = null;
@@ -335,7 +362,8 @@ app.post('/api/registrations', async (req, res) => {
  */
 app.put('/api/registrations/:id', requireAdmin, (req, res) => {
   const id = Number(req.params.id);
-  const existing = db.prepare('SELECT * FROM registrations WHERE id = ?').get(id);
+  // Only the id is needed here — this read is just "does this record exist?".
+  const existing = db.prepare('SELECT id FROM registrations WHERE id = ?').get(id);
 
   if (!existing) {
     // 404 = "Not Found".
@@ -349,7 +377,9 @@ app.put('/api/registrations/:id', requireAdmin, (req, res) => {
       return res.status(400).json({ errors: ['Status must be Pending or Arrived.'] });
     }
     db.prepare('UPDATE registrations SET status = ? WHERE id = ?').run(req.body.status, id);
-    return res.json(db.prepare('SELECT * FROM registrations WHERE id = ?').get(id));
+    return res.json(
+      db.prepare(`SELECT ${REGISTRATION_COLUMNS} FROM registrations WHERE id = ?`).get(id)
+    );
   }
 
   // Case (a): full edit — validate like a new record.
@@ -367,7 +397,7 @@ app.put('/api/registrations/:id', requireAdmin, (req, res) => {
   `).run(data.school, data.contact, data.email, data.students, data.adults,
          data.session, data.date, data.notes, data.file_name, id);
 
-  res.json(db.prepare('SELECT * FROM registrations WHERE id = ?').get(id));
+  res.json(db.prepare(`SELECT ${REGISTRATION_COLUMNS} FROM registrations WHERE id = ?`).get(id));
 });
 
 /**
@@ -464,7 +494,12 @@ function requireTeacherToken(req, res, next) {
     return res.status(404).json({ errors: ['Registration link not found.'] });
   }
 
-  const registration = db.prepare('SELECT * FROM registrations WHERE token = ?').get(token);
+  // Read the safe columns only. The token was the input to this lookup, so
+  // there is no reason to carry a second copy of it around on req.
+  const registration = db
+    .prepare(`SELECT ${REGISTRATION_COLUMNS} FROM registrations WHERE token = ?`)
+    .get(token);
+
   if (!registration) {
     // Deliberately the same 404 as "no token at all": a caller probing for
     // valid tokens learns nothing from the difference.
