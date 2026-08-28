@@ -46,6 +46,7 @@ const crypto = require('crypto');
 const QRCode = require('qrcode');
 const bcrypt = require('bcryptjs');           // password hashing (pure JS, no build step)
 const cookieParser = require('cookie-parser'); // reads/writes the admin session cookie
+const rateLimit = require('express-rate-limit'); // caps how often one IP can hit a route
 const db = require('./db'); // our database module (creates the table on first run)
 
 const app = express();
@@ -124,6 +125,53 @@ app.use(cookieParser(SESSION_SECRET));
 // Serve the front-end files (index.html etc.) from /public.
 app.use(express.static(path.join(__dirname, 'public')));
 
+// --- Rate limiting ----------------------------------------------------
+/**
+ * A rate limiter counts how many times one IP address has hit a route
+ * recently, and starts refusing once that goes past a sensible number.
+ *
+ * It is not really about blocking a person typing too fast — it is about
+ * a SCRIPT. Without a limit, a program can hammer the login route with
+ * thousands of password guesses a minute, or fill the database with junk
+ * registrations, in the time it takes to make a cup of tea. A limit turns
+ * "thousands of guesses a minute" into "ten every quarter hour", which
+ * makes guessing a password hopeless while a real person never notices.
+ *
+ * The limits below are applied per route rather than to the whole site,
+ * because the sensible number is different for each one.
+ */
+function makeLimiter(windowMs, limit) {
+  return rateLimit({
+    windowMs,
+    limit,
+    standardHeaders: true, // report the limit in the modern RateLimit-* headers
+    legacyHeaders: false,  // ...and not the old X-RateLimit-* ones
+    // Reply in the same { errors: [...] } shape as the rest of the API, so
+    // the front-end's existing error handling shows it without changes.
+    handler: (req, res) => {
+      res.status(429).json({ errors: ['Too many requests, please try again later.'] });
+    }
+  });
+}
+
+// Creating a registration: 20 per hour per IP.
+// A school registers once. Even a busy office doing several classes in one
+// sitting stays well under 20, so this only ever catches a script.
+const createRegistrationLimiter = makeLimiter(60 * 60 * 1000, 20);
+
+// Adding a student: 60 per hour per IP.
+// Deliberately HIGHER than the registration limit, because one teacher
+// typing a whole class in by hand is a completely normal thing to do —
+// 30 children, plus corrections and re-entries, would blow through a
+// smaller limit and lock out the very person we built this for.
+const studentSignUpLimiter = makeLimiter(60 * 60 * 1000, 60);
+
+// Admin login: 10 attempts per 15 minutes per IP.
+// The tightest limit, because this is the one route where an attacker
+// gains something by trying again. A forgetful admin gets plenty of
+// tries; a script gets 40 guesses an hour, which is useless to it.
+const adminLoginLimiter = makeLimiter(15 * 60 * 1000, 10);
+
 // --- Admin authentication -------------------------------------------
 
 /**
@@ -154,7 +202,7 @@ function requireAdmin(req, res, next) {
  * never reveal whether a hash exists, what it is, or how close the guess
  * was. Attackers learn nothing from the reply except "no".
  */
-app.post('/api/admin/login', (req, res) => {
+app.post('/api/admin/login', adminLoginLimiter, (req, res) => {
   if (!ADMIN_CONFIGURED) {
     // Fail closed: no configuration means nobody gets in, ever.
     console.warn('Admin login attempted but ADMIN_PASSWORD_HASH / SESSION_SECRET are not set.');
@@ -307,7 +355,7 @@ app.get('/api/registrations', requireAdmin, (req, res) => {
  * the teacher can hand it to their students to self-register.
  * Responds with the created record plus { link, qrCode }.
  */
-app.post('/api/registrations', async (req, res) => {
+app.post('/api/registrations', createRegistrationLimiter, async (req, res) => {
   const errors = validateRegistration(req.body);
   if (errors.length) {
     // 400 = "Bad Request": you sent me data I can't accept.
@@ -553,7 +601,7 @@ app.get('/api/my-registration/students', requireTeacherToken, (req, res) => {
  * POST /api/my-registration/students
  * A teacher adding one of their own students by hand.
  */
-app.post('/api/my-registration/students', requireTeacherToken, (req, res) => {
+app.post('/api/my-registration/students', studentSignUpLimiter, requireTeacherToken, (req, res) => {
   const errors = validateStudent(req.body);
   if (errors.length) {
     return res.status(400).json({ errors });
@@ -667,7 +715,7 @@ app.get('/api/registrations/:id/students', requireAdmin, (req, res) => {
  * ids existed. A token is a random UUID: you cannot guess one, and the
  * only one you hold is your own.
  */
-app.post('/api/registrations/token/:token/students', (req, res) => {
+app.post('/api/registrations/token/:token/students', studentSignUpLimiter, (req, res) => {
   const registration = db
     .prepare('SELECT id FROM registrations WHERE token = ?')
     .get(req.params.token);
