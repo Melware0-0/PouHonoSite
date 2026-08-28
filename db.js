@@ -52,6 +52,8 @@ db.pragma('foreign_keys = ON');
  *               that students use to self-register under this class. The
  *               same token also opens the teacher's own /register/:token
  *               portal for managing the class.
+ *  - is_walk_in: 1 only for the shared system container. This is a durable
+ *               identity flag; school is display text and is not unique.
  *  - not_attending:
  *               of the `students` booked for, how many will NOT be coming
  *               after all. 0 means "all of them are". Also added by the
@@ -72,7 +74,8 @@ db.exec(`
     file_name TEXT    DEFAULT '',
     status    TEXT    NOT NULL DEFAULT 'Pending'
               CHECK (status IN ('Pending', 'Arrived')),
-    token     TEXT    UNIQUE
+    token     TEXT    UNIQUE,
+    is_walk_in INTEGER NOT NULL DEFAULT 0 CHECK (is_walk_in IN (0, 1))
   )
 `);
 
@@ -114,6 +117,7 @@ function addColumnIfMissing(table, column, definition) {
 }
 
 addColumnIfMissing('registrations', 'not_attending', 'INTEGER NOT NULL DEFAULT 0');
+addColumnIfMissing('registrations', 'is_walk_in', 'INTEGER NOT NULL DEFAULT 0 CHECK (is_walk_in IN (0, 1))');
 
 /**
  * Individual student sign-ups, always linked to a registration:
@@ -200,15 +204,36 @@ if (rowCount === 0) {
  * once and reused — checked on every startup so it self-heals on an
  * existing database that predates this feature.
  *
- * The school name below is what identifies this row for the rest of the
- * program. server.js holds it as the constant WALK_IN_SCHOOL and does all
- * of its "is this the walk-in row?" checks through that — including the
- * security check that stops this row's public token being used as a
- * teacher's password. This file cannot import that constant (server.js
- * requires db.js, so the arrow only points one way), so if you ever change
- * the name, change it in both places or the checks stop matching.
+ * `is_walk_in`, not the editable school display name, identifies this row.
+ * Older databases predate that flag, so mark their existing container once.
+ * The oldest matching row is the same row the old `.get()` lookup used. This
+ * preserves its attached students and, importantly, keeps its public token
+ * denied teacher powers after the upgrade.
  */
-const walkIn = db.prepare("SELECT id FROM registrations WHERE school = 'Individual / Walk-in'").get();
+let walkIn = db.prepare('SELECT id FROM registrations WHERE is_walk_in = 1').get();
+
+if (!walkIn) {
+  const legacyWalkIn = db.prepare(`
+    SELECT id FROM registrations
+    WHERE school = 'Individual / Walk-in'
+    ORDER BY id
+    LIMIT 1
+  `).get();
+
+  if (legacyWalkIn) {
+    db.prepare('UPDATE registrations SET is_walk_in = 1 WHERE id = ?').run(legacyWalkIn.id);
+    walkIn = legacyWalkIn;
+    console.log('Database upgraded: marked the existing walk-in container.');
+  }
+}
+
+// There must be exactly one system container, while any number of genuine
+// classes may happen to use the same display name.
+db.exec(`
+  CREATE UNIQUE INDEX IF NOT EXISTS registrations_one_walk_in
+  ON registrations (is_walk_in)
+  WHERE is_walk_in = 1
+`);
 
 // Its id, however it got here — found or just created. The student seed
 // below needs it so that the dashboard's walk-in count is not zero.
@@ -216,8 +241,8 @@ let walkInId = walkIn ? walkIn.id : null;
 
 if (!walkIn) {
   walkInId = db.prepare(`
-    INSERT INTO registrations (school, contact, email, students, adults, session, date, notes, file_name, status, token)
-    VALUES ('Individual / Walk-in', 'N/A', 'walkin@sacth.local', 0, 0, 'N/A', ?, 'Auto-created container for individual sign-ups not linked to a teacher.', '', 'Pending', ?)
+    INSERT INTO registrations (school, contact, email, students, adults, session, date, notes, file_name, status, token, is_walk_in)
+    VALUES ('Individual / Walk-in', 'N/A', 'walkin@sacth.local', 0, 0, 'N/A', ?, 'Auto-created container for individual sign-ups not linked to a teacher.', '', 'Pending', ?, 1)
   `).run(new Date().toISOString().slice(0, 10), crypto.randomUUID()).lastInsertRowid;
 
   console.log('Created shared "Individual / Walk-in" registration for direct student sign-ups.');

@@ -287,13 +287,11 @@ const REGISTRATION_COLUMNS =
 /**
  * One row in `registrations` is not a school at all: it is the shared
  * container that direct, no-teacher-involved sign-ups attach to. db.js
- * creates it on startup, and it is recognised by its school name.
+ * creates it on startup.
  *
- * That name is a magic string, and a magic string re-typed at every place
- * that needs it is a rule that only mostly gets applied — miss one copy and
- * that one route quietly does not check. It lives here once, with a helper
- * to ask the question, so that every "is this the walk-in row?" test in the
- * server agrees with every other one.
+ * Its `is_walk_in` database flag is the identity. The school name is only
+ * display text and may legitimately be used by an ordinary registration.
+ * A helper keeps every server-side check on the durable flag.
  *
  * WHY THE SERVER HAS TO ASK AT ALL: this row's token is deliberately
  * PUBLIC — GET /api/walk-in-registration hands it to anybody, because the
@@ -304,15 +302,13 @@ const REGISTRATION_COLUMNS =
  * individual child's name, age and allergies. Public token, public
  * privileges only.
  */
-const WALK_IN_SCHOOL = 'Individual / Walk-in';
-
 /**
  * True if this registration row is the shared walk-in container.
- * Takes a row (or anything with a `school`) and copes with being handed
+ * Takes a row (or anything with an `is_walk_in`) and copes with being handed
  * nothing, so callers can ask without checking for null first.
  */
 function isWalkInRegistration(reg) {
-  return Boolean(reg) && reg.school === WALK_IN_SCHOOL;
+  return Boolean(reg) && reg.is_walk_in === 1;
 }
 
 // --- Validation (FR3) -----------------------------------------------
@@ -432,7 +428,7 @@ function cleanRegistration(body) {
  */
 app.get('/api/registrations', requireAdmin, (req, res) => {
   const rows = db
-    .prepare(`SELECT ${REGISTRATION_COLUMNS} FROM registrations ORDER BY date DESC, id DESC`)
+    .prepare(`SELECT ${REGISTRATION_COLUMNS}, is_walk_in FROM registrations ORDER BY date DESC, id DESC`)
     .all();
   res.json(rows);
 });
@@ -457,8 +453,8 @@ app.get('/api/registrations', requireAdmin, (req, res) => {
  */
 app.get('/api/registrations/count', (req, res) => {
   const row = db
-    .prepare('SELECT COUNT(*) AS n FROM registrations WHERE school != ?')
-    .get(WALK_IN_SCHOOL);
+    .prepare('SELECT COUNT(*) AS n FROM registrations WHERE is_walk_in = 0')
+    .get();
   res.json({ count: row.n });
 });
 
@@ -533,15 +529,19 @@ app.post('/api/registrations', createRegistrationLimiter, async (req, res) => {
 app.put('/api/registrations/:id', requireAdmin, (req, res) => {
   const id = Number(req.params.id);
   // Only the id is needed here — this read is just "does this record exist?".
-  const existing = db.prepare('SELECT id FROM registrations WHERE id = ?').get(id);
+  const existing = db.prepare('SELECT id, is_walk_in FROM registrations WHERE id = ?').get(id);
 
   if (!existing) {
     // 404 = "Not Found".
     return res.status(404).json({ errors: ['Record not found.'] });
   }
 
-  // Case (b): only the status is being changed (attendance toggle).
   const keys = isJsonObject(req.body) ? Object.keys(req.body) : [];
+  if (isWalkInRegistration(existing) && !(keys.length === 1 && keys[0] === 'status')) {
+    return res.status(409).json({ errors: ['The walk-in container cannot be edited.'] });
+  }
+
+  // Case (b): only the status is being changed (attendance toggle).
   if (keys.length === 1 && keys[0] === 'status') {
     if (!['Pending', 'Arrived'].includes(req.body.status)) {
       return res.status(400).json({ errors: ['Status must be Pending or Arrived.'] });
@@ -577,6 +577,10 @@ app.put('/api/registrations/:id', requireAdmin, (req, res) => {
  * ADMIN ONLY — deleting a class also deletes its students (ON DELETE CASCADE).
  */
 app.delete('/api/registrations/:id', requireAdmin, (req, res) => {
+  const existing = db.prepare('SELECT is_walk_in FROM registrations WHERE id = ?').get(Number(req.params.id));
+  if (isWalkInRegistration(existing)) {
+    return res.status(409).json({ errors: ['The walk-in container cannot be deleted.'] });
+  }
   const result = db
     .prepare('DELETE FROM registrations WHERE id = ?')
     .run(Number(req.params.id));
@@ -670,7 +674,7 @@ function requireTeacherToken(req, res, next) {
   // Read the safe columns only. The token was the input to this lookup, so
   // there is no reason to carry a second copy of it around on req.
   const registration = db
-    .prepare(`SELECT ${REGISTRATION_COLUMNS} FROM registrations WHERE token = ?`)
+    .prepare(`SELECT ${REGISTRATION_COLUMNS}, is_walk_in FROM registrations WHERE token = ?`)
     .get(token);
 
   if (!registration || isWalkInRegistration(registration)) {
@@ -843,8 +847,8 @@ app.get('/api/registrations/token/:token', (req, res) => {
  */
 app.get('/api/walk-in-registration', (req, res) => {
   const reg = db
-    .prepare('SELECT token FROM registrations WHERE school = ?')
-    .get(WALK_IN_SCHOOL);
+    .prepare('SELECT token FROM registrations WHERE is_walk_in = 1')
+    .get();
 
   if (!reg) {
     return res.status(404).json({ errors: ['Walk-in registration is not set up.'] });
@@ -982,7 +986,7 @@ app.get('/join/:token', (req, res) => {
 });
 
 app.get('/register/:token', (req, res) => {
-  const reg = db.prepare('SELECT school FROM registrations WHERE token = ?').get(req.params.token);
+  const reg = db.prepare('SELECT is_walk_in FROM registrations WHERE token = ?').get(req.params.token);
   if (!reg) {
     return res.redirect('/');
   }
