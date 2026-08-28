@@ -348,6 +348,31 @@ app.get('/api/registrations', requireAdmin, (req, res) => {
 });
 
 /**
+ * GET /api/registrations/count
+ * PUBLIC. Just the number of schools registered, for the live counter on
+ * the home page.
+ *
+ * The home page used to get this by fetching the entire list from
+ * GET /api/registrations and counting it — which meant every visitor to
+ * the front page was handed every school's contact name, email and link
+ * token. That route is admin-only now, so the counter asks for the one
+ * thing it actually displays: a number.
+ *
+ * A count on its own identifies nobody, and it was already shown publicly
+ * on the home page, so this exposes nothing new — it replaces a route
+ * that leaked far more.
+ *
+ * The shared "Individual / Walk-in" container is excluded, because it is
+ * internal plumbing rather than a school that registered.
+ */
+app.get('/api/registrations/count', (req, res) => {
+  const row = db
+    .prepare("SELECT COUNT(*) AS n FROM registrations WHERE school != 'Individual / Walk-in'")
+    .get();
+  res.json({ count: row.n });
+});
+
+/**
  * POST /api/registrations
  * Creates a new record (a teacher's class). New records always start as
  * 'Pending'. Also generates a unique token, the shareable /register/:token
