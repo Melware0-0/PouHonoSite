@@ -122,11 +122,12 @@
   .filters {
     display: flex;
     flex-wrap: wrap;
+    align-items: center;
     gap: 12px;
     margin-bottom: 18px;
   }
 
-  .filters input, .filters select {
+  .filters input, .filters select, .filters button {
     background: var(--bg);
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
@@ -135,7 +136,22 @@
     font-size: 0.9rem;
   }
 
-  .filters input { flex: 1; min-width: 160px; }
+  /* Only the school search should soak up the spare width on the row.
+     Every input used to be flex:1, which was fine when there was one text
+     box and looks daft once two-digit age boxes are stretched to match it. */
+  .filters input[type="text"] { flex: 1; min-width: 160px; }
+
+  /* Age from / Age to: room for the placeholder and the spinner, no more. */
+  .filters input[type="number"] { width: 116px; }
+
+  .filters button { cursor: pointer; }
+  .filters button:hover { border-color: var(--green-accent); }
+
+  .chart-caption {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin: -8px 0 14px;
+  }
 
   .table-scroll { overflow-x: auto; }
 
@@ -262,16 +278,32 @@
     <div class="layout-grid">
       <div class="panel">
         <h2>Registrations</h2>
+        <!--
+          The dropdown that used to sit here offered "All sessions" built
+          from registrations.session — but that column holds the name of the
+          whole event ('NZ Tech Week 2027') and is identical on every row, so
+          it was a filter with exactly one thing to pick. The choice an admin
+          actually wants to slice by is the ACTIVITY each child picked, which
+          lives on students.preferred_session, plus their age and year group.
+        -->
         <div class="filters">
           <input type="text" id="filterSchool" placeholder="Search by school name...">
-          <select id="filterSession">
-            <option value="">All sessions</option>
+          <select id="filterActivity">
+            <option value="">All activities</option>
           </select>
+          <select id="filterYearGroup">
+            <option value="">All year groups</option>
+          </select>
+          <input type="number" id="filterAgeFrom" min="0" max="120" step="1"
+                 placeholder="Age from" aria-label="Age from">
+          <input type="number" id="filterAgeTo" min="0" max="120" step="1"
+                 placeholder="Age to" aria-label="Age to">
           <select id="filterStatus">
             <option value="">All statuses</option>
             <option value="Pending">Pending</option>
             <option value="Arrived">Arrived</option>
           </select>
+          <button type="button" id="clearFilters">Clear filters</button>
         </div>
         <div class="table-scroll">
           <table>
@@ -298,6 +330,7 @@
 
       <div class="panel">
         <h2>Students by Preferred Session</h2>
+        <p class="chart-caption" id="chartCaption">&mdash;</p>
         <div class="chart-wrap">
           <canvas id="sessionChart"></canvas>
         </div>
@@ -450,15 +483,24 @@
       allStudents = await studentsRes.json();
 
       renderStats(walkIn);
-      populateSessionFilter();
-      renderTable();
-      renderChart();
+      populateStudentFilters();
+      applyFilters();
     } catch (err) {
       // adminFetch has already put the login gate back up on a 401.
       // Anything else (server down) leaves the "Loading…" row in place.
     }
   }
 
+  /*
+   * The four tiles across the top are the headline figures for the WHOLE
+   * event and are deliberately NOT filtered. "Total Students" has to keep
+   * meaning "everyone coming" even while the admin is looking at just the
+   * Year 6 robotics children underneath it — a headline number that moved
+   * every time somebody typed in the school box would be useless for the
+   * thing these tiles are for, which is reporting the size of the event.
+   * The filtered counts live where they belong: the table row count, and
+   * the "Showing X of Y students" line under the chart.
+   */
   function renderStats(walkIn) {
     const totalRegistrations = allRegistrations.length;
 
@@ -483,37 +525,204 @@
     document.getElementById('statPopular').textContent = popular ? popular[0] : 'No sessions picked yet';
   }
 
-  function populateSessionFilter() {
-    const select = document.getElementById('filterSession');
-    const sessions = [...new Set(allRegistrations.map((r) => r.session))].sort();
-    sessions.forEach((s) => {
+  /**
+   * Sort key for a year group.
+   *
+   * The values the sign-up forms offer are 'Year 1' … 'Year 13' and '18+'.
+   * Sorted as plain text those come out wrong — 'Year 10' lands before
+   * 'Year 2', because the comparison is character by character and '1'
+   * sorts before '2'. So pull the number out of the label and sort on the
+   * number instead, and park '18+' at the end where it reads correctly as
+   * "and older", rather than as year eighteen.
+   */
+  function yearGroupRank(label) {
+    if (label === '18+') return Number.MAX_SAFE_INTEGER;
+    const digits = String(label).match(/\d+/);
+    // Anything unrecognised sorts after the numbered years, before '18+'.
+    return digits ? Number(digits[0]) : Number.MAX_SAFE_INTEGER - 1;
+  }
+
+  /**
+   * Add one <option> per value to a dropdown.
+   *
+   * .textContent, not .innerHTML: these labels come from the database and
+   * therefore ultimately from a public sign-up form, so they are attacker
+   * controllable. Setting textContent makes the browser treat the string as
+   * text and never as markup — the same protection escapeHtml() gives the
+   * strings that DO get built into HTML further down.
+   */
+  function fillSelect(id, values) {
+    const select = document.getElementById(id);
+    values.forEach((value) => {
       const opt = document.createElement('option');
-      opt.value = s;
-      opt.textContent = s;
+      opt.value = value;
+      opt.textContent = value;
       select.appendChild(opt);
     });
   }
 
-  function renderTable() {
-    const schoolQuery = document.getElementById('filterSchool').value.trim().toLowerCase();
-    const sessionQuery = document.getElementById('filterSession').value;
-    const statusQuery = document.getElementById('filterStatus').value;
+  /**
+   * Build the Activity and Year group dropdowns out of the data itself, so
+   * they can only ever offer options that actually match something. An
+   * activity nobody has picked is not worth a line in the menu.
+   */
+  function populateStudentFilters() {
+    const activities = [...new Set(allStudents.map((s) => s.preferred_session))]
+      .filter(Boolean)
+      .sort();
 
-    const filtered = allRegistrations.filter((r) => {
-      if (schoolQuery && !r.school.toLowerCase().includes(schoolQuery)) return false;
-      if (sessionQuery && r.session !== sessionQuery) return false;
-      if (statusQuery && r.status !== statusQuery) return false;
-      return true;
+    const yearGroups = [...new Set(allStudents.map((s) => s.year_group))]
+      .filter(Boolean)
+      .sort((a, b) => yearGroupRank(a) - yearGroupRank(b) || a.localeCompare(b));
+
+    fillSelect('filterActivity', activities);
+    fillSelect('filterYearGroup', yearGroups);
+  }
+
+  /*
+   * ============ FILTERING ============
+   *
+   * There are two kinds of filter on this page and they do NOT work the
+   * same way, because they describe different things:
+   *
+   *   CLASS-LEVEL    school, status        — properties of a registration
+   *   STUDENT-LEVEL  activity, age, year   — properties of one child
+   *
+   * The client's brief asks for exactly the two combined: "how many
+   * students from Manurewa Primary are interested in doing the robotics
+   * course". "Manurewa Primary" is a property of the class, "Robotics" is a
+   * property of the child, and the answer is a count of children. So both
+   * lists the page draws are worked out together in one pass:
+   *
+   *   filteredStudents       every child matching all the active
+   *                          student-level filters whose class ALSO matches
+   *                          the active class-level filters. Draws the pie
+   *                          chart and its legend.
+   *   filteredRegistrations  every class matching the class-level filters,
+   *                          narrowed to those with at least one child in
+   *                          filteredStudents — but only WHEN a
+   *                          student-level filter is switched on. Draws
+   *                          the table.
+   *
+   * That "only when" matters. On a freshly loaded dashboard nothing is
+   * filtered, and a class that has booked but whose children have not
+   * signed up yet must still be listed: it is precisely the class the admin
+   * needs to chase. Only once the admin asks a question about children
+   * ("who wants Robotics?") does a class with no matching children stop
+   * being part of the answer.
+   */
+
+  /** Read one age box: a number, or null meaning "no bound given". */
+  function readAgeBound(id) {
+    const raw = document.getElementById(id).value.trim();
+    // Number('') is 0, so an empty box would otherwise quietly become the
+    // real filter "age 0" and hide everybody. Empty means no bound at all.
+    if (raw === '') return null;
+    const value = Number(raw);
+    return Number.isNaN(value) ? null : value;
+  }
+
+  /** Snapshot of what every filter control currently says. */
+  function readFilters() {
+    return {
+      school: document.getElementById('filterSchool').value.trim().toLowerCase(),
+      status: document.getElementById('filterStatus').value,
+      activity: document.getElementById('filterActivity').value,
+      yearGroup: document.getElementById('filterYearGroup').value,
+      ageFrom: readAgeBound('filterAgeFrom'),
+      ageTo: readAgeBound('filterAgeTo')
+    };
+  }
+
+  function classFiltersActive(f) {
+    return Boolean(f.school || f.status);
+  }
+
+  function studentFiltersActive(f) {
+    return Boolean(f.activity || f.yearGroup || f.ageFrom !== null || f.ageTo !== null);
+  }
+
+  /** Does this registration pass the class-level filters? */
+  function registrationMatches(r, f) {
+    if (f.school && !r.school.toLowerCase().includes(f.school)) return false;
+    if (f.status && r.status !== f.status) return false;
+    return true;
+  }
+
+  /** Does this child pass the student-level filters? */
+  function studentMatches(s, f) {
+    if (f.activity && s.preferred_session !== f.activity) return false;
+    if (f.yearGroup && s.year_group !== f.yearGroup) return false;
+
+    // Age is optional on the sign-up forms, so it can be null. A child with
+    // no age on file cannot be SHOWN to fall inside a range, so an age
+    // filter leaves them out rather than guessing them in — "aged 10 to 12"
+    // has to mean children we know are 10 to 12.
+    if (f.ageFrom !== null || f.ageTo !== null) {
+      if (s.age === null || s.age === undefined) return false;
+      if (f.ageFrom !== null && s.age < f.ageFrom) return false;
+      if (f.ageTo !== null && s.age > f.ageTo) return false;
+    }
+    return true;
+  }
+
+  /** Work out both filtered lists from the current state of the controls. */
+  function computeFiltered() {
+    const f = readFilters();
+    const classFilterOn = classFiltersActive(f);
+    const studentFilterOn = studentFiltersActive(f);
+
+    const matchingClasses = allRegistrations.filter((r) => registrationMatches(r, f));
+    const matchingClassIds = new Set(matchingClasses.map((r) => r.id));
+
+    /*
+     * WALK-IN CHILDREN — the deliberate decision.
+     *
+     * Children who signed up without a teacher hang off the hidden
+     * "Individual / Walk-in" container row, which loadDashboard strips out
+     * of allRegistrations: it is not a school and never belongs in the
+     * table. So there is no class row for a class-level filter to test them
+     * against, and we have to choose.
+     *
+     * The choice made here: a walk-in child passes the class-level gate
+     * only while NO class-level filter is set. They have no school of their
+     * own, so they are not "from Manurewa Primary" and must not inflate the
+     * client's worked example; and their container's status is a
+     * placeholder that means nothing about a real arrival, so filtering on
+     * Pending/Arrived must not sweep them in either. With the school and
+     * status controls left empty — the normal case — they count like anyone
+     * else and appear in the chart, which is what the totals need.
+     */
+    const filteredStudents = allStudents.filter((s) => {
+      if (!studentMatches(s, f)) return false;
+      if (matchingClassIds.has(s.registration_id)) return true;
+      return !classFilterOn; // a walk-in child, with no class of their own
     });
 
+    const idsWithMatchingStudents = new Set(filteredStudents.map((s) => s.registration_id));
+    const filteredRegistrations = studentFilterOn
+      ? matchingClasses.filter((r) => idsWithMatchingStudents.has(r.id))
+      : matchingClasses;
+
+    return { filteredRegistrations, filteredStudents };
+  }
+
+  /** Re-read the controls and redraw everything they govern. */
+  function applyFilters() {
+    const { filteredRegistrations, filteredStudents } = computeFiltered();
+    renderTable(filteredRegistrations);
+    renderChart(filteredStudents);
+  }
+
+  function renderTable(registrations) {
     const tbody = document.getElementById('tableBody');
 
-    if (!filtered.length) {
+    if (!registrations.length) {
       tbody.innerHTML = '<tr class="empty-row"><td colspan="10">No registrations match your filters.</td></tr>';
       return;
     }
 
-    tbody.innerHTML = filtered.map((r) => `
+    tbody.innerHTML = registrations.map((r) => `
       <tr>
         <td>${escapeHtml(r.school)}</td>
         <td>${escapeHtml(r.contact)}</td>
@@ -552,7 +761,10 @@
         const updated = await res.json();
         const idx = allRegistrations.findIndex((r) => r.id === updated.id);
         if (idx !== -1) allRegistrations[idx] = updated;
-        renderTable();
+        // applyFilters, not just renderTable: status is a class-level
+        // filter, so marking a class Arrived can change which children the
+        // chart is counting as well as which row the table shows.
+        applyFilters();
       }
     } catch (err) {
       // adminFetch has already re-shown the gate on a 401.
@@ -561,9 +773,24 @@
     }
   }
 
-  document.getElementById('filterSchool').addEventListener('input', renderTable);
-  document.getElementById('filterSession').addEventListener('change', renderTable);
-  document.getElementById('filterStatus').addEventListener('change', renderTable);
+  // 'input' fires on every keystroke/spin for the typed boxes; 'change'
+  // is the right event for a dropdown, which only ever changes in one go.
+  document.getElementById('filterSchool').addEventListener('input', applyFilters);
+  document.getElementById('filterAgeFrom').addEventListener('input', applyFilters);
+  document.getElementById('filterAgeTo').addEventListener('input', applyFilters);
+  document.getElementById('filterActivity').addEventListener('change', applyFilters);
+  document.getElementById('filterYearGroup').addEventListener('change', applyFilters);
+  document.getElementById('filterStatus').addEventListener('change', applyFilters);
+
+  // With five controls it is easy to leave one set and wonder why the
+  // numbers look wrong, so give the admin one button back to "everything".
+  // '' is the empty option on every one of these, dropdowns included.
+  document.getElementById('clearFilters').addEventListener('click', () => {
+    ['filterSchool', 'filterAgeFrom', 'filterAgeTo',
+     'filterActivity', 'filterYearGroup', 'filterStatus']
+      .forEach((id) => { document.getElementById(id).value = ''; });
+    applyFilters();
+  });
 
   function escapeHtml(str) {
     const div = document.createElement('div');
@@ -589,9 +816,9 @@
   // --- Pie chart ---
   let chartInstance = null;
 
-  function renderChart() {
+  function renderChart(students) {
     const tally = {};
-    allStudents.forEach((s) => {
+    students.forEach((s) => {
       tally[s.preferred_session] = (tally[s.preferred_session] || 0) + 1;
     });
 
@@ -601,8 +828,22 @@
 
     const legend = document.getElementById('chartLegend');
 
+    // A pie chart with no numbers attached is easy to misread once the
+    // filters can hide most of the event, so say plainly how much of it is
+    // actually on screen.
+    document.getElementById('chartCaption').textContent =
+      `Showing ${students.length} of ${allStudents.length} students`;
+
     if (!labels.length) {
-      legend.innerHTML = '<li style="justify-content:center; color:var(--text-muted);">No students registered yet.</li>';
+      legend.innerHTML = '<li style="justify-content:center; color:var(--text-muted);">No students match your filters.</li>';
+      // The chart used to be drawn exactly once, so there was never an old
+      // one to clean up. Now that filtering redraws it, a leftover pie
+      // sitting above an empty legend would be showing numbers that are no
+      // longer true — so take it down.
+      if (chartInstance) {
+        chartInstance.destroy();
+        chartInstance = null;
+      }
       return;
     }
 
