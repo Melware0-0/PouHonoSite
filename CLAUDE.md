@@ -4,36 +4,154 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Pou Hono — a small full-stack registration/attendance system for SACTH, built as a proof of concept. Node.js + Express backend, a single-file SQLite database (via `better-sqlite3`), and a plain HTML/CSS/JS front-end.
+Pou Hono — the registration website for **NZ Tech Week 2027**, built for SACTH
+(South Auckland Creative Tech Hub) and The Cause Collective, for South Auckland
+schools.
+
+A teacher registers their class and gets a shareable link and QR code. Students
+open that link and register themselves, grouped automatically under their
+teacher. Teachers can also type students in themselves from their own portal.
+Individuals can register without a school at all.
+
+Node.js + Express 5, a single-file SQLite database (`better-sqlite3`), and a
+plain HTML/CSS/JS front-end served as static files.
+
+**The data is children's names, ages and allergies.** Data sovereignty is the
+stated reason the client had this built in-house rather than buying a SaaS
+product. That is why the access rules below exist and why they are not
+negotiable.
 
 ## Commands
 
 ```bash
-npm install     # installs express + better-sqlite3
-node server.js  # or: npm start — starts the server on http://localhost:3000
+npm install     # install dependencies
+node server.js  # or: npm start — serves on http://localhost:3000
 ```
 
-There is no build step, linter, or test suite configured in this repo (`package.json` only defines `start`).
+There is **no build step, no bundler, no linter and no test suite**
+(`package.json` defines only `start`). Do not add one unless asked. You edit a
+file and reload the page.
 
-The SQLite file `pou-hono.db` is created and auto-seeded with example rows on first run, next to `db.js`. Delete it to reset all data — the table/seed logic in `db.js` recreates it.
+The server needs a `.env` before the admin dashboard works — see below.
 
-## Known repo issue: `public/` is a broken submodule reference
+The SQLite file `pou-hono.db` is created next to `db.js` on first run and seeded
+with example classes and students. Delete it to reset all data; the schema and
+seed logic in `db.js` rebuild it.
 
-`public` is committed as a git submodule (mode `160000`), but there is no `.gitmodules` file, so git can't resolve it — the directory is empty in every checkout. The front-end (`public/index.html` etc., described in README.md) does not currently exist in this working tree. Before doing front-end work, check whether this has been fixed upstream; if not, flag it rather than assuming `public/index.html` exists.
+## Environment (`.env`)
+
+`.env` is gitignored. `.env.example` is the committed template and documents
+each value with the exact command that generates it.
+
+- `ADMIN_PASSWORD_HASH` — a **bcrypt hash** of the admin password, never the
+  password. Generate with
+  `node -e "console.log(require('bcryptjs').hashSync(process.argv[1], 10))" 'YourPassword'`
+- `SESSION_SECRET` — long random string signing the admin cookie. Generate with
+  `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
+- `PORT` — optional, defaults to 3000.
+
+If either secret is missing the server still starts and every public page works;
+it prints a warning and admin login refuses every attempt. It **fails closed** —
+never treat an unconfigured server as an open one.
+
+## The three access levels
+
+Every API route sits behind exactly one of these. When adding a route, the first
+question is which one it needs.
+
+- **Public** — anyone. Can create a registration, and can sign a student up if
+  they hold a valid link token. Cannot read anybody's data.
+- **Teacher** — holds the secret token from their own link. `requireTeacherToken`
+  reads it from an `Authorization: Bearer` header or `?token=`, looks up the
+  registration and attaches it as `req.registration`. There is no teacher
+  account or password: the unguessable token *is* the credential.
+- **Admin** — `requireAdmin` checks a signed httpOnly cookie set by
+  `POST /api/admin/login` (bcrypt compare against `ADMIN_PASSWORD_HASH`).
+
+Two rules that are easy to break by accident:
+
+- **An unknown token and a rejected token must return the identical 404.** If
+  they differ, someone probing can enumerate valid tokens. The existing
+  middleware says so in a comment — keep that property.
+- **The "Individual / Walk-in" registration's token is public** (handed out by
+  `GET /api/walk-in-registration` so individuals can sign up). It must therefore
+  never satisfy `requireTeacherToken` or open the teacher portal. `server.js`
+  has `WALK_IN_SCHOOL` and `isWalkInRegistration(reg)` for this test — use them
+  rather than re-typing the string.
 
 ## Architecture
 
-- **`server.js`** — the entire backend: Express app, static file serving of `public/`, request validation, and all REST routes for `/api/registrations` (GET list, POST create, PUT update-or-status-toggle, DELETE). Validation happens both here (`validateRegistration`) and is expected client-side too — the server never trusts client input. All queries use prepared statements (`db.prepare(...).run/get/all(...)`) — never build SQL by string concatenation here.
-- **`db.js`** — owns the SQLite connection and schema. Creates the `registrations` table (with a `status` CHECK constraint limited to `'Pending' | 'Arrived'`) if missing, and seeds 5 example rows only on a genuinely empty table (first-ever run). `date` is stored as `YYYY-MM-DD` text specifically so it sorts/filters correctly with plain `>=`/`<=` comparisons — keep that format if adding date logic.
-- **`public/`** — intended to hold the entire front-end as static files served directly by Express (no bundler/framework). See the submodule issue above.
-- No auth/session layer exists. No file upload storage — `file_name` on a registration is just a filename string, not a stored file.
+- **`server.js`** — the entire backend: the Express app, static serving of
+  `public/`, the two gatekeeper middlewares, rate limiting, validation, and
+  every route. All queries use prepared statements (`db.prepare(...)` with `?`
+  placeholders) — **never build SQL by string concatenation here.** Routes
+  select **explicit columns** rather than `SELECT *` on `registrations`, so a
+  new column can never leak into a response by accident; keep that pattern.
+- **`db.js`** — owns the SQLite connection and schema. Creates `registrations`
+  (with a `status` CHECK constraint of `'Pending' | 'Arrived'`) and `students`,
+  upgrades existing databases in place via `addColumnIfMissing(...)`, and seeds
+  example data only on a genuinely empty table. `date` is stored as `YYYY-MM-DD`
+  text specifically so it sorts and filters with plain `>=` / `<=` — keep that
+  format.
+- **`public/`** — the whole front-end as static files, no framework:
+  - `index.html` (home), `register.html` (teacher + individual paths),
+    `teacher.html` (the teacher's class portal), `student.html` (student
+    self-registration), `admin.html` (dashboard), `faq.html`
+  - `nav.js` injects the shared nav and footer into every page
+  - `translations.js` swaps four languages via `data-i18n` attributes
+  - `event-days.js` holds the three event dates
+  - `styles.css`
+- **`pou-hono.db`** — the data, one file, gitignored. No cloud, by design.
 
-## Where to add things (from README)
+### Routes
 
-- New API endpoint → `server.js`, following the pattern of an existing route.
-- New database column → add to the `CREATE TABLE` in `db.js`, then delete `pou-hono.db` locally so it rebuilds, then update the relevant API validation/clean functions and the front-end form.
-- New front-end page → `public/index.html`, copying an existing `<div class="page">` block (single-page-app style, not separate HTML files).
+Page routes: `/join/:token` serves the **student** sign-up page (this is the
+link and QR a teacher shares); `/register/:token` serves the **teacher** portal.
+Both take the same token; an unknown token on either redirects to `/`.
+
+| Route | Gate |
+|---|---|
+| `POST /api/admin/login` · `logout` · `GET /api/admin/session` | public (login is rate limited) |
+| `GET /api/admin/students` | admin — every student in one query |
+| `GET /api/registrations` · `PUT`/`DELETE /api/registrations/:id` · `GET /api/registrations/:id/students` | admin |
+| `POST /api/registrations` | public, rate limited |
+| `GET /api/registrations/count` · `/api/registrations/token/:token` · `/api/walk-in-registration` | public |
+| `POST /api/registrations/token/:token/students` | public + valid token, rate limited |
+| `GET /api/my-registration` · `/qr` · `/students`, `POST`/`DELETE .../students` | teacher token |
+
+## Where to add things
+
+- **New API endpoint** → `server.js`, following an existing route, and pick its
+  gatekeeper deliberately.
+- **New database column** → add it to the `CREATE TABLE` in `db.js` **and** to
+  the `addColumnIfMissing(...)` calls below it, so existing databases upgrade in
+  place rather than needing to be deleted. Then update `validateRegistration` /
+  `cleanRegistration` (or the student equivalents), the explicit column lists,
+  and the form.
+- **New front-end page** → a new file in `public/`, copying an existing page's
+  structure (nav placeholder, `styles.css`, `nav.js`, and `translations.js` if
+  it needs the language switcher). These are separate pages, not one SPA.
+- **Changing the event dates** → `public/event-days.js` and nowhere else. It is
+  loaded both by Node (`require('./public/event-days.js')`) and by the browser
+  (`<script src="/event-days.js">`), which is what keeps the dates defined once.
+
+## Front-end conventions
+
+- The pages build rows with template literals and `innerHTML`. **Every
+  user-supplied value must go through the page's `escapeHtml` helper** (or be
+  set with `textContent`). Student names and allergy text arrive through a
+  public endpoint, so they are attacker-controlled.
+- Translated strings live in `translations.js` keyed by `data-i18n` /
+  `data-i18n-placeholder`, in all four languages: `en`, `mi`, `sm`, `to`. Add a
+  new string to **all four** or the switcher falls back to English for it.
+- ⚠️ The mi/sm/to strings are AI-generated and **not reviewed by fluent
+  speakers**. The file header says so. Keep that warning, and don't present
+  them as finished.
 
 ## Scope notes
 
-Per the project proposal, real authentication and multi-device/production deployment are explicitly out of scope for this proof of concept (see README.md "NOT implemented yet"). Don't add auth, HTTPS, or cloud storage unless the user asks — "local storage only, no cloud" is a stated constraint, not an oversight.
+Handled separately or deliberately not built: hosting and deployment, the
+auto-reply confirmation email, school-name search behind the "Search your
+school…" box, real logo and event imagery, and load testing to the brief's
+1,000-user target. `file_name` on a registration is just a filename string — no
+file is stored. Don't add these unless asked.
