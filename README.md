@@ -88,8 +88,8 @@ The dates currently in it are **placeholders** pending confirmation from SACTH.
 | `/admin.html` | Admin dashboard — password protected |
 
 A teacher finishing registration is given **both** links: `/join/…` to hand to
-their students, and `/register/…` to bookmark for themselves. Both carry the
-same token.
+their students, and `/register/…` to bookmark for themselves. They carry different
+tokens: the student link permits sign-up only; keep the teacher portal link secret.
 
 The registration, student sign-up and teacher portal pages are translated into
 **English, te reo Māori, gagana Sāmoa and lea faka-Tonga** via
@@ -107,10 +107,9 @@ Three levels of access, and every API route sits behind one of them:
 
 - **Public** — anyone. Can create a registration, and can sign a student up if
   they hold a valid link token. Cannot read anybody's data.
-- **Teacher** — holds the secret token from their own link. Can see and manage
+- **Teacher** — holds the secret token from their own portal link. Can see and manage
   **only their own class**. No password: the unguessable token *is* the
-  credential, which is what lets a teacher share a link with thirty students
-  without handing out an account.
+  credential, while the separate student link can be shared with the whole class.
 - **Admin** — logged in with the admin password. Can see everything.
 
 ### The API
@@ -136,10 +135,15 @@ Three levels of access, and every API route sits behind one of them:
 | POST | `/api/my-registration/students` | **teacher token** (rate limited) |
 | DELETE | `/api/my-registration/students/:studentId` | **teacher token** |
 
+Startup adds and uniquely indexes `teacher_token`, backfilling existing classes
+with fresh UUIDs. Walk-ins retain a NULL teacher token. Existing student links
+keep working; old teacher portal links must be replaced after this upgrade.
+Creation returns `link`, `qrCode`, and `portalLink`, without raw token fields.
+
 A teacher token is sent either as `Authorization: Bearer <token>` or as
 `?token=<token>`.
 
-`GET /api/registrations` never returns the `token` column — the routes select
+`GET /api/registrations` never returns the `token` or `teacher_token` columns — the routes select
 explicit columns rather than `SELECT *`, so a new column can never leak by
 accident.
 

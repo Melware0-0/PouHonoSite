@@ -20,7 +20,7 @@
  *   PUBLIC   anyone on the internet. Can create a registration and can
  *            sign a student up if they hold a valid link token. Cannot
  *            read anybody's data.
- *   TEACHER  holds the secret token from their own shareable link. Can
+ *   TEACHER  holds the secret token from their own portal link. Can
  *            see and manage ONLY their own class — no password needed,
  *            because the unguessable token IS the credential.
  *   ADMIN    logged in with the admin password. Can see everything.
@@ -262,18 +262,15 @@ app.get('/api/admin/session', (req, res) => {
 
 // --- Which registration columns are safe to send back ----------------
 /**
- * Every column of the registrations table EXCEPT `token`.
+ * Safe registration columns, excluding `token` and `teacher_token`.
  *
  * `SELECT *` is convenient but dangerous: the moment someone adds a
  * sensitive column to the table, every route using `*` starts quietly
  * publishing it, and nobody notices. Listing the columns means a new
  * column is private until somebody deliberately adds it here.
  *
- * `token` is left out because it is a credential. Anyone holding a
- * class's token can read that class's students, so it must never appear
- * in an API reply. The one place it legitimately reaches the outside
- * world is inside the shareable link (and the QR code of that link)
- * returned once, to the teacher, at the moment they register.
+ * Tokens are excluded from general responses. Student links allow sign-up;
+ * secret portal links allow class management. Return links only on creation.
  *
  * NOTE: this is a fixed string written by us, never anything a visitor
  * sent — that is why it is safe to drop into the SQL below. Real VALUES
@@ -295,8 +292,8 @@ const REGISTRATION_COLUMNS =
  *
  * WHY THE SERVER HAS TO ASK AT ALL: this row's token is deliberately
  * PUBLIC — GET /api/walk-in-registration hands it to anybody, because the
- * student page needs it to attach a walk-in sign-up. Every other token in
- * the table is a secret that acts as a password. So the walk-in token must
+ * student page needs it to attach a walk-in sign-up. Only teacher_token
+ * acts as a password, and the walk-in row has none. The walk-in token must
  * never be allowed through a door that treats "you hold the token" as
  * "you are the teacher": that would let any visitor read and delete every
  * individual child's name, age and allergies. Public token, public
@@ -464,14 +461,10 @@ app.get('/api/registrations/count', (req, res) => {
  * 'Pending'. Also generates a unique token, the shareable /join/:token
  * link built from it, and a QR code image (data URL) for that link — so
  * the teacher can hand it to their students to self-register.
- * Responds with the created record plus { link, qrCode }.
+ * Responds with the created record plus { link, qrCode, portalLink }.
  *
- * NOTE ON THE TWO LINKS: the same token opens two different pages.
- *   /join/<token>      → the STUDENT sign-up page. This is `link` below,
- *                        the one that goes in the QR code and gets shared.
- *   /register/<token>  → the TEACHER's own portal for managing the class.
- * Only the student link is built here, because that is the one the
- * teacher is about to hand out; register.html shows them both.
+ * Separate UUIDs protect the two links: `link` is the student /join URL;
+ * `portalLink` is the secret teacher /register URL. Only share `link`.
  */
 app.post('/api/registrations', createRegistrationLimiter, async (req, res) => {
   const errors = validateRegistration(req.body, { eventDaysOnly: true });
@@ -482,17 +475,18 @@ app.post('/api/registrations', createRegistrationLimiter, async (req, res) => {
 
   const data = cleanRegistration(req.body);
   const token = crypto.randomUUID();
+  const teacherToken = crypto.randomUUID();
 
   // "?" placeholders are PREPARED STATEMENTS. The database treats the
   // values purely as data, never as SQL — this is what prevents
   // SQL injection attacks. Never build SQL strings by hand.
   const result = db
     .prepare(`
-      INSERT INTO registrations (school, contact, email, students, adults, not_attending, session, date, notes, file_name, status, token)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending', ?)
+      INSERT INTO registrations (school, contact, email, students, adults, not_attending, session, date, notes, file_name, status, token, teacher_token)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending', ?, ?)
     `)
     .run(data.school, data.contact, data.email, data.students, data.adults,
-         data.not_attending, data.session, data.date, data.notes, data.file_name, token);
+         data.not_attending, data.session, data.date, data.notes, data.file_name, token, teacherToken);
 
   const created = db
     .prepare(`SELECT ${REGISTRATION_COLUMNS} FROM registrations WHERE id = ?`)
@@ -503,6 +497,7 @@ app.post('/api/registrations', createRegistrationLimiter, async (req, res) => {
   // leave the token column out. The teacher gets the link and the QR code;
   // the raw token is never a field of its own in the reply.
   const link = `${req.protocol}://${req.get('host')}/join/${token}`;
+  const portalLink = `${req.protocol}://${req.get('host')}/register/${teacherToken}`;
 
   let qrCode = null;
   try {
@@ -512,7 +507,7 @@ app.post('/api/registrations', createRegistrationLimiter, async (req, res) => {
   }
 
   // 201 = "Created".
-  res.status(201).json({ ...created, link, qrCode });
+  res.status(201).json({ ...created, link, portalLink, qrCode });
 });
 
 /**
@@ -674,7 +669,7 @@ function requireTeacherToken(req, res, next) {
   // Read the safe columns only. The token was the input to this lookup, so
   // there is no reason to carry a second copy of it around on req.
   const registration = db
-    .prepare(`SELECT ${REGISTRATION_COLUMNS}, is_walk_in FROM registrations WHERE token = ?`)
+    .prepare(`SELECT ${REGISTRATION_COLUMNS}, is_walk_in FROM registrations WHERE teacher_token = ?`)
     .get(token);
 
   if (!registration || isWalkInRegistration(registration)) {
@@ -740,12 +735,8 @@ app.get('/api/my-registration', requireTeacherToken, (req, res) => {
  * inside the link, exactly as it does at registration time.
  */
 app.get('/api/my-registration/qr', requireTeacherToken, async (req, res) => {
-  // Read the token back the same way requireTeacherToken did. We cannot use
-  // req.registration for this, because that row deliberately leaves the
-  // token column out — and the link needs the token in it.
-  const authHeader = String(req.get('authorization') || '');
-  const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
-  const token = bearerMatch ? bearerMatch[1].trim() : String(req.query.token || '').trim();
+  // Authentication uses the teacher secret; the QR must use the student token.
+  const { token } = db.prepare('SELECT token FROM registrations WHERE id = ?').get(req.registration.id);
 
   const link = `${req.protocol}://${req.get('host')}/join/${token}`;
 
@@ -960,8 +951,7 @@ app.post('/api/registrations/token/:token/students', studentSignUpLimiter, (req,
 
 // --- Token link pages ---------------------------------------------------
 /**
- * One token, two doors. Which page you land on depends on the path, and
- * that split is the whole point:
+ * Separate student and teacher tokens protect these two doors:
  *
  *   /join/:token      the STUDENT self-registration page. This is the
  *                     address in the QR code and in the link the teacher
@@ -972,8 +962,8 @@ app.post('/api/registrations/token/:token/students', studentSignUpLimiter, (req,
  *                     signed up so far, the share link and QR code again,
  *                     and a form to type a student in by hand.
  *
- * Both are PUBLIC pages with no login, because holding the token IS the
- * credential. That is not an oversight — see requireTeacherToken above.
+ * The student page uses registrations.token; the portal uses teacher_token.
+ * Holding the secret portal token is the teacher credential.
  * Nothing sensitive lives in the HTML itself either way: the pages are
  * empty shells that ask the API for data, and the API checks the token.
  *
@@ -998,27 +988,13 @@ app.get('/join/:token', (req, res) => {
 });
 
 app.get('/register/:token', (req, res) => {
-  const reg = db.prepare('SELECT is_walk_in FROM registrations WHERE token = ?').get(req.params.token);
+  const reg = db.prepare('SELECT is_walk_in FROM registrations WHERE teacher_token = ?').get(req.params.token);
   if (!reg) {
     return res.redirect('/');
   }
   if (isWalkInRegistration(reg)) {
-    // There is no teacher behind the walk-in container, so there is no
-    // teacher portal for it — and its token is public, so serving one here
-    // would hand every visitor the tools for managing individual sign-ups.
-    //
-    // Note this is a 404, NOT the redirect above. The redirect is for a
-    // mistyped or expired link, which is a visitor's honest mistake and is
-    // best answered by quietly putting them back on the home page. A link to
-    // /register/<the public walk-in token> is different: nothing in this site
-    // ever produces one, so if it is being requested, either somebody built
-    // it by hand or we have a bug that generated it. Bouncing that to the
-    // home page would hide it. A 404 says plainly that this page does not
-    // exist.
-    //
-    // Plain text rather than a designed error page: the site has no 404
-    // page of its own, and inventing one is a bigger change than this fix
-    // needs. The status code is the part that matters.
+    // Defence in depth: a walk-in row can never open a teacher portal,
+    // even if a credential were assigned outside the startup migration.
     return res.status(404).type('text').send('Not found.');
   }
   res.sendFile('teacher.html', { root: PUBLIC_DIR });

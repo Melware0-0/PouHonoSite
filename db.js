@@ -49,9 +49,8 @@ db.pragma('foreign_keys = ON');
  *               storing the actual file is a documented future step.
  *  - token:     unique id (crypto.randomUUID()) generated per registration,
  *               used to build the shareable /join/:token link + QR code
- *               that students use to self-register under this class. The
- *               same token also opens the teacher's own /register/:token
- *               portal for managing the class.
+ *               that students use to self-register under this class.
+ *  - teacher_token: separate secret UUID for /register/:token and teacher APIs
  *  - is_walk_in: 1 only for the shared system container. This is a durable
  *               identity flag; school is display text and is not unique.
  *  - not_attending:
@@ -75,6 +74,7 @@ db.exec(`
     status    TEXT    NOT NULL DEFAULT 'Pending'
               CHECK (status IN ('Pending', 'Arrived')),
     token     TEXT    UNIQUE,
+    teacher_token TEXT,
     is_walk_in INTEGER NOT NULL DEFAULT 0 CHECK (is_walk_in IN (0, 1))
   )
 `);
@@ -118,6 +118,11 @@ function addColumnIfMissing(table, column, definition) {
 
 addColumnIfMissing('registrations', 'not_attending', 'INTEGER NOT NULL DEFAULT 0');
 addColumnIfMissing('registrations', 'is_walk_in', 'INTEGER NOT NULL DEFAULT 0 CHECK (is_walk_in IN (0, 1))');
+addColumnIfMissing('registrations', 'teacher_token', 'TEXT');
+db.exec(`
+  CREATE UNIQUE INDEX IF NOT EXISTS registrations_teacher_token
+  ON registrations (teacher_token) WHERE teacher_token IS NOT NULL
+`);
 
 /**
  * Individual student sign-ups, always linked to a registration:
@@ -168,8 +173,8 @@ let seededRegistrationIds = null;
 
 if (rowCount === 0) {
   const insert = db.prepare(`
-    INSERT INTO registrations (school, contact, email, students, adults, not_attending, session, date, notes, status, token)
-    VALUES (@school, @contact, @email, @students, @adults, @not_attending, @session, @date, @notes, @status, @token)
+    INSERT INTO registrations (school, contact, email, students, adults, not_attending, session, date, notes, status, token, teacher_token)
+    VALUES (@school, @contact, @email, @students, @adults, @not_attending, @session, @date, @notes, @status, @token, @teacher_token)
   `);
 
   const [day1, day2, day3] = EVENT_DAYS.map((d) => d.date);
@@ -183,7 +188,7 @@ if (rowCount === 0) {
     // Same school as row 2 on purpose: the dashboard has a "repeat
     // visitor" idea that needs one school to appear more than once.
     { key: 'manurewa-repeat', school: 'Manurewa Primary', contact: 'J. Fale', email: 'admin@manurewaprimary.school.nz', students: 22, adults: 2, not_attending: 0, session: EVENT, date: day3, notes: 'Repeat visit', status: 'Arrived' }
-  ].map((row) => ({ ...row, token: crypto.randomUUID() }));
+  ].map((row) => ({ ...row, token: crypto.randomUUID(), teacher_token: crypto.randomUUID() }));
 
   // A transaction = "do all of these inserts, or none of them".
   const seedAll = db.transaction((rows) => {
@@ -247,6 +252,15 @@ if (!walkIn) {
 
   console.log('Created shared "Individual / Walk-in" registration for direct student sign-ups.');
 }
+
+// Run after legacy walk-in identification: only classes get teacher credentials.
+// Clear any credential on the public container, including on later startups.
+db.transaction(() => {
+  db.prepare('UPDATE registrations SET teacher_token = NULL WHERE is_walk_in = 1').run();
+  const missing = db.prepare('SELECT id FROM registrations WHERE is_walk_in = 0 AND teacher_token IS NULL').all();
+  const backfill = db.prepare('UPDATE registrations SET teacher_token = ? WHERE id = ?');
+  for (const row of missing) backfill.run(crypto.randomUUID(), row.id);
+})();
 
 /**
  * Seed students — same "only on a genuinely empty table" rule as above.

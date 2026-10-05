@@ -607,7 +607,7 @@
     submitBtn.disabled = !acceptCheckbox.checked;
   });
 
-  // The teacher's own link token, taken from the shareable link the server
+  // The teacher's secret token, taken from the portal link the server
   // hands back after registering. It is what lets this page add students
   // to THIS class and no other — see the manual student form below.
   let myToken = null;
@@ -638,17 +638,9 @@
       const responseData = await res.json();
 
       if (res.ok) {
-        // The link looks like http://host/join/<token>; the last path
-        // segment is the token. The server never sends the raw token as a
-        // field of its own — the link is the one place it belongs.
-        myToken = String(responseData.link || '').split('/').pop();
-
-        // The same token opens two different pages, and the teacher needs
-        // both: /join/<token> to hand to students, /register/<token> to come
-        // back to themselves. The server only builds the student one (it is
-        // the one in the QR code), so we build the portal one here by
-        // swapping the path segment.
-        const portalUrl = `${window.location.origin}/register/${myToken}`;
+        // The portal has a separate secret; the student link is safe to share.
+        const portalUrl = responseData.portalLink;
+        myToken = new URL(portalUrl).pathname.split('/').pop();
 
         document.getElementById('shareLink').value = responseData.link;
         document.getElementById('qrImage').src = responseData.qrCode || '';
