@@ -2,9 +2,12 @@
   "name": "pou-hono",
   "version": "1.0.0",
   "description": "SACTH community data system — proof of concept",
-  "main": "index.js",
+  "main": "server.js",
   "scripts": {
     "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20"
   },
   "keywords": [],
   "author": "",
