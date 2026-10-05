@@ -391,7 +391,9 @@
   <div id="site-footer"></div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<!-- Chart.js 4.4.1, served from this site rather than a CDN so no third-party
+     script runs on the page that holds every child's data. -->
+<script src="/vendor/chart.umd.js"></script>
 <script src="/event-days.js"></script>
 <script src="/nav.js"></script>
 <script>

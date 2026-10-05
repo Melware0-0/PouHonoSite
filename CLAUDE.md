@@ -100,6 +100,8 @@ Two rules that are easy to break by accident:
   - `nav.js` injects the shared nav and footer into every page
   - `translations.js` swaps four languages via `data-i18n` attributes
   - `event-days.js` holds the three event dates
+  - `vendor/chart.umd.js` is Chart.js 4.4.1 for the admin chart, self-hosted
+    (MIT, licence alongside) so no third-party script runs on the admin page
   - `styles.css`
 - **`pou-hono.db`** — the data, one file, gitignored. No cloud, by design.
 
