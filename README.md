@@ -24,8 +24,8 @@ and reload the page.
 
 ## Running it
 
-You need **Node.js 20 or newer**, ideally 22 or 24 (`node -v` to check); the
-`better-sqlite3` version in use does not support Node 18. Then, from this folder:
+Use **Node.js 22 or 24** (`node -v` to check). The locked `better-sqlite3`
+version supports Node 20 and 22 through 26, but not Node 18 or 21. Then, from this folder:
 
 ```bash
 npm install                  # 1. install dependencies
