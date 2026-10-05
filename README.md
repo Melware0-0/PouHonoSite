@@ -122,6 +122,7 @@ Three levels of access, and every API route sits behind one of them:
 | GET | `/api/admin/students` | **admin** — every student, in one query |
 | GET | `/api/registrations` | **admin** |
 | PUT | `/api/registrations/:id` | **admin** — full edit, or just the status toggle |
+| POST | `/api/registrations/:id/teacher-link` | **admin** — replaces the teacher portal link; old link stops working |
 | DELETE | `/api/registrations/:id` | **admin** |
 | GET | `/api/registrations/:id/students` | **admin** |
 | POST | `/api/registrations` | public (rate limited) — a teacher registering a class |

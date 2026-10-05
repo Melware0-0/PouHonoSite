@@ -790,6 +790,7 @@
         <td class="actions-cell">
           <div class="row-actions">
             <button type="button" class="btn-link edit-btn" data-id="${r.id}">Edit</button>
+            <button type="button" class="btn-link reset-teacher-link-btn" data-id="${r.id}">Reset teacher link</button>
             <button type="button" class="btn-link btn-link--danger delete-btn" data-id="${r.id}">Delete</button>
           </div>
         </td>
@@ -877,6 +878,9 @@
     tbody.querySelectorAll('.save-edit-btn').forEach((btn) => {
       btn.addEventListener('click', () => saveEdit(btn));
     });
+    tbody.querySelectorAll('.reset-teacher-link-btn').forEach((btn) => {
+      btn.addEventListener('click', () => resetTeacherLink(btn));
+    });
     tbody.querySelectorAll('.delete-btn').forEach((btn) => {
       btn.addEventListener('click', () => deleteRegistration(btn));
     });
@@ -936,6 +940,29 @@
       // adminFetch has already re-shown the gate on a 401. The row stays
       // as it was so nothing typed is lost.
       row.querySelectorAll('button, input, textarea').forEach((el) => { el.disabled = false; });
+    }
+  }
+
+  async function resetTeacherLink(btn) {
+    if (!window.confirm("The teacher's current portal link will stop working. Continue?")) return;
+
+    btn.disabled = true;
+    try {
+      const res = await adminFetch(`/api/registrations/${Number(btn.dataset.id)}/teacher-link`, {
+        method: 'POST'
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert((data.errors && data.errors.join(' ')) || 'Could not reset the teacher link.');
+        return;
+      }
+      // A native prompt keeps the link copyable without inserting HTML.
+      window.prompt('Copy this new portal link and send it to the teacher:', data.portalLink);
+    } catch (err) {
+      // adminFetch has already re-shown the gate on a 401.
+      alert('Could not reset the teacher link.');
+    } finally {
+      btn.disabled = false;
     }
   }
 
