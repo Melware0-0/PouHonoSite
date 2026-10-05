@@ -308,15 +308,15 @@
         <form id="teacherForm" novalidate>
           <div class="field">
             <label for="t-contact" data-i18n="label_fullname">Full name</label>
-            <input type="text" id="t-contact" name="contact" required placeholder="e.g. J. Fale">
+            <input type="text" id="t-contact" name="contact" required placeholder="e.g. J. Fale" maxlength="100">
           </div>
           <div class="field">
             <label for="t-email" data-i18n="label_email">Email</label>
-            <input type="email" id="t-email" name="email" required placeholder="you@school.school.nz">
+            <input type="email" id="t-email" name="email" required placeholder="you@school.school.nz" maxlength="254">
           </div>
           <div class="field">
             <label for="t-school" data-i18n="label_school">School name</label>
-            <input type="text" id="t-school" name="school" required placeholder="Search your school..." data-i18n-placeholder="placeholder_school">
+            <input type="text" id="t-school" name="school" required placeholder="Search your school..." data-i18n-placeholder="placeholder_school" maxlength="150">
           </div>
           <div class="field-row">
             <div class="field">
@@ -433,7 +433,7 @@
           <form id="manualStudentForm" novalidate>
             <div class="field">
               <label for="m-name" data-i18n="label_student_name">Student name</label>
-              <input type="text" id="m-name" name="name" required>
+              <input type="text" id="m-name" name="name" required maxlength="100">
             </div>
             <div class="field-row">
               <div class="field">
@@ -449,7 +449,7 @@
             </div>
             <div class="field">
               <label for="m-allergies"><span data-i18n="label_allergies">Allergies / health conditions</span> <span style="color:var(--text-muted); font-weight:400;" data-i18n="label_optional">(optional)</span></label>
-              <textarea id="m-allergies" name="allergies" rows="2"></textarea>
+              <textarea id="m-allergies" name="allergies" rows="2" maxlength="500"></textarea>
             </div>
             <div class="field">
               <label for="m-session" data-i18n="label_preferred_session">Preferred session</label>
