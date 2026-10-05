@@ -34,7 +34,7 @@ file and reload the page.
 
 The server needs a `.env` before the admin dashboard works — see below.
 
-The SQLite file `pou-hono.db` is created next to `db.js` on first run and seeded
+The SQLite file `pou-hono.db` is created next to `db.js` (or at `DATABASE_PATH`) on first run and seeded
 with example classes and students. Delete it to reset all data; the schema and
 seed logic in `db.js` rebuild it.
 
@@ -58,6 +58,8 @@ each value with the exact command that generates it.
   unset falls back to the request protocol and host via `publicBaseUrl(req)`.
 - `NODE_ENV=production` — use when hosting over HTTPS; enables HTTPS-only
   admin cookies.
+
+- `DATABASE_PATH` — optional; where the SQLite file lives (default: next to `db.js`). Point it into a host's persistent volume in production.
 
 Public student limits are 100/hour per class token and IP, 60/hour for the
 walk-in token and IP, with a 600/hour IP ceiling including invalid tokens.

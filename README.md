@@ -35,7 +35,7 @@ node server.js               # 4. start the server   (or: npm start)
 
 Open **http://localhost:3000**. `Ctrl + C` stops the server.
 
-On first run the database file `pou-hono.db` is created next to `db.js` and
+On first run the database file `pou-hono.db` is created next to `db.js` (or at `DATABASE_PATH`) and
 seeded with example classes and students so the admin dashboard demos properly.
 Delete that file to reset everything.
 
@@ -53,6 +53,7 @@ short version.
 | `TRUST_PROXY` | no | Proxy hop count (e.g. `1`) or Express proxy IP/subnet setting; unset uses the direct connection IP |
 | `PUBLIC_BASE_URL` | no | Canonical origin for share/portal links and QR codes (e.g. `https://register.example.nz`); trailing slashes removed; unset uses request protocol/host |
 | `NODE_ENV` | production hosting | Set to `production` for HTTPS-only admin cookies; serve over HTTPS |
+| `DATABASE_PATH` | no | Where the database file lives. Defaults to `pou-hono.db` next to `db.js`; on a host, point it into the persistent volume (e.g. `/data/pou-hono.db`) |
 
 Set `TRUST_PROXY` to match your host's proxy topology so rate limits use the
 client IP. Only trust proxies that overwrite client-supplied forwarding headers.

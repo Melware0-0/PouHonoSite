@@ -25,8 +25,12 @@ const crypto = require('crypto');
 // data follows automatically instead of quietly going stale.
 const EVENT_DAYS = require('./public/event-days.js');
 
-// Open (or create) the database file next to this script.
-const db = new Database(path.join(__dirname, 'pou-hono.db'));
+// Open (or create) the database file. By default it sits next to this
+// script. DATABASE_PATH overrides that, which a host needs when only one
+// folder (a mounted "volume") survives restarts and redeploys, e.g.
+// DATABASE_PATH=/data/pou-hono.db on Railway.
+const DATABASE_PATH = process.env.DATABASE_PATH || path.join(__dirname, 'pou-hono.db');
+const db = new Database(DATABASE_PATH);
 
 // WAL mode = safer writes if the app crashes mid-save. One line, free win.
 db.pragma('journal_mode = WAL');
