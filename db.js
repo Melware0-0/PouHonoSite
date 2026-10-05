@@ -34,6 +34,17 @@ db.pragma('journal_mode = WAL');
 // Enforce the students.registration_id foreign key (SQLite doesn't by default).
 db.pragma('foreign_keys = ON');
 
+// Admin credentials stay server-side; timestamps are Unix milliseconds.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS admin_sessions (
+    id TEXT PRIMARY KEY,
+    created_at INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL,
+    password_fingerprint TEXT NOT NULL
+  )
+`);
+
+
 /**
  * Create the registrations table if it doesn't exist yet.
  *
