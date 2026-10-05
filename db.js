@@ -15,6 +15,10 @@
  * server runs. Delete pou-hono.db to reset everything.
  */
 
+// Load local settings even when a maintenance script imports db.js directly.
+// Existing environment variables (including host-provided settings) take precedence.
+require('dotenv').config();
+
 const Database = require('better-sqlite3');
 const path = require('path');
 const crypto = require('crypto');
