@@ -14,8 +14,9 @@
     <nav class="site-nav">
       <div class="site-nav__inner">
         <a class="site-nav__brand" href="/">
-          <span class="site-nav__logo" aria-hidden="true">🌿</span>
-          <span>Pou Hono</span>
+          <img class="site-nav__org-logo" src="/images/SACTH_Symbol-1.webp" alt="SACTH logo" width="40" height="40">
+          <img class="site-nav__org-logo" src="/images/tcc_logo_symbol.webp" alt="The Cause Collective logo" width="40" height="40">
+          <span>NZ Tech Week — SACTH</span>
         </a>
 
         <button class="site-nav__toggle" id="navToggle" aria-label="Toggle menu" aria-expanded="false">

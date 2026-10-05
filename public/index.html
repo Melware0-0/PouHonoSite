@@ -264,24 +264,88 @@
 
   .gallery__grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 24px;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
   }
 
-  .gallery__box {
+  @media (min-width: 640px) {
+    .gallery__grid { grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  }
+
+  @media (min-width: 1000px) {
+    .gallery__grid { grid-template-columns: repeat(4, 1fr); gap: 24px; }
+  }
+
+  .gallery__item {
     aspect-ratio: 4 / 3;
-    border: 2px dashed var(--border);
+    border: none;
+    padding: 0;
     border-radius: var(--radius);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    color: var(--text-muted);
+    overflow: hidden;
+    cursor: zoom-in;
     background: var(--bg-alt);
   }
 
-  .gallery__box span:first-child { font-size: 2rem; }
+  .gallery__item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform 0.3s ease;
+  }
+
+  .gallery__item:hover img,
+  .gallery__item:focus-visible img {
+    transform: scale(1.06);
+  }
+
+  .gallery__item:focus-visible {
+    outline: 2px solid var(--green-accent);
+    outline-offset: 3px;
+  }
+
+  /* ---------- Lightbox ---------- */
+  .lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: rgba(10, 13, 20, 0.92);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 56px 20px 20px;
+  }
+
+  .lightbox[hidden] { display: none; }
+
+  .lightbox__image {
+    max-width: min(92vw, 1100px);
+    max-height: 85vh;
+    width: auto;
+    height: auto;
+    border-radius: var(--radius-sm);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  }
+
+  .lightbox__close {
+    position: fixed;
+    top: 16px;
+    right: 20px;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-alt);
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    color: var(--text);
+    font-size: 1.6rem;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .lightbox__close:hover { border-color: var(--green-accent); color: var(--green-accent); }
 
   /* ---------- Map ---------- */
   .map {
@@ -443,20 +507,21 @@
       <p>A few moments from previous SACTH events.</p>
     </div>
     <div class="gallery__grid reveal">
-      <div class="gallery__box">
-        <span aria-hidden="true">📷</span>
-        <span>Photo coming soon</span>
-      </div>
-      <div class="gallery__box">
-        <span aria-hidden="true">📷</span>
-        <span>Photo coming soon</span>
-      </div>
-      <div class="gallery__box">
-        <span aria-hidden="true">📷</span>
-        <span>Photo coming soon</span>
-      </div>
+      <button type="button" class="gallery__item"><img src="/images/DSC00092.jpg" alt="Photo from a past SACTH NZ Tech Week event" loading="lazy"></button>
+      <button type="button" class="gallery__item"><img src="/images/DSC00096.jpg" alt="Photo from a past SACTH NZ Tech Week event" loading="lazy"></button>
+      <button type="button" class="gallery__item"><img src="/images/DSC00136.jpg" alt="Photo from a past SACTH NZ Tech Week event" loading="lazy"></button>
+      <button type="button" class="gallery__item"><img src="/images/DSC00137.jpg" alt="Photo from a past SACTH NZ Tech Week event" loading="lazy"></button>
+      <button type="button" class="gallery__item"><img src="/images/DSC00144.jpg" alt="Photo from a past SACTH NZ Tech Week event" loading="lazy"></button>
+      <button type="button" class="gallery__item"><img src="/images/DSC00267.jpg" alt="Photo from a past SACTH NZ Tech Week event" loading="lazy"></button>
+      <button type="button" class="gallery__item"><img src="/images/DSC00291.jpg" alt="Photo from a past SACTH NZ Tech Week event" loading="lazy"></button>
+      <button type="button" class="gallery__item"><img src="/images/DSC00294.jpg" alt="Photo from a past SACTH NZ Tech Week event" loading="lazy"></button>
     </div>
   </section>
+
+  <div class="lightbox" id="lightbox" hidden>
+    <button type="button" class="lightbox__close" id="lightboxClose" aria-label="Close photo">&times;</button>
+    <img class="lightbox__image" id="lightboxImage" src="" alt="">
+  </div>
 
   <section class="section map">
     <div class="section__head reveal">
@@ -501,6 +566,35 @@
         flip();
       }
     });
+  });
+
+  // Gallery lightbox — click a photo to see it full screen. Closes on the
+  // close button, clicking the dark backdrop, or pressing Escape.
+  const lightbox = document.getElementById('lightbox');
+  const lightboxImage = document.getElementById('lightboxImage');
+  const lightboxClose = document.getElementById('lightboxClose');
+
+  function openLightbox(img) {
+    lightboxImage.src = img.src;
+    lightboxImage.alt = img.alt;
+    lightbox.hidden = false;
+  }
+
+  function closeLightbox() {
+    lightbox.hidden = true;
+    lightboxImage.src = '';
+  }
+
+  document.querySelectorAll('.gallery__item').forEach((item) => {
+    item.addEventListener('click', () => openLightbox(item.querySelector('img')));
+  });
+
+  lightboxClose.addEventListener('click', closeLightbox);
+  lightbox.addEventListener('click', (e) => {
+    if (e.target === lightbox) closeLightbox();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !lightbox.hidden) closeLightbox();
   });
 
   // Live counter — total registrations, excluding the internal walk-in container.
