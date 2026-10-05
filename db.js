@@ -119,6 +119,24 @@ function addColumnIfMissing(table, column, definition) {
 addColumnIfMissing('registrations', 'not_attending', 'INTEGER NOT NULL DEFAULT 0');
 addColumnIfMissing('registrations', 'is_walk_in', 'INTEGER NOT NULL DEFAULT 0 CHECK (is_walk_in IN (0, 1))');
 
+// SQLite cannot ADD COLUMN with UNIQUE, so on an older database `token`
+// arrives as plain TEXT. Give any row that predates it a token of its own
+// (otherwise that class has no link at all), then enforce uniqueness with
+// an index instead. On a new database the CREATE TABLE's UNIQUE already
+// covers it and this index is simply redundant.
+addColumnIfMissing('registrations', 'token', 'TEXT');
+
+const rowsWithoutToken = db.prepare('SELECT id FROM registrations WHERE token IS NULL').all();
+if (rowsWithoutToken.length > 0) {
+  const setToken = db.prepare('UPDATE registrations SET token = ? WHERE id = ?');
+  db.transaction(() => {
+    rowsWithoutToken.forEach(({ id }) => setToken.run(crypto.randomUUID(), id));
+  })();
+  console.log(`Database upgraded: gave ${rowsWithoutToken.length} registration(s) a link token.`);
+}
+
+db.exec('CREATE UNIQUE INDEX IF NOT EXISTS registrations_token_unique ON registrations (token)');
+
 /**
  * Individual student sign-ups, always linked to a registration:
  *  - via a teacher's shared link  → registration_id = that teacher's row
