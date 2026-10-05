@@ -49,6 +49,22 @@ each value with the exact command that generates it.
 - `SESSION_SECRET` — long random string signing the admin cookie. Generate with
   `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
 - `PORT` — optional, defaults to 3000.
+- `TRUST_PROXY` — optional proxy hop count (e.g. `1`) or Express proxy
+  IP/subnet setting. Unset retains direct-connection IPs. Match the hosting
+  proxy topology and only trust proxies that overwrite forwarding headers;
+  rate limits then use the real client IP.
+- `PUBLIC_BASE_URL` — optional canonical origin for share/portal links and QR
+  codes, e.g. `https://register.example.nz`. Trailing slashes are removed;
+  unset falls back to the request protocol and host via `publicBaseUrl(req)`.
+- `NODE_ENV=production` — use when hosting over HTTPS; enables HTTPS-only
+  admin cookies.
+
+Public student limits are 100/hour per class token and IP, 60/hour for the
+walk-in token and IP, with a 600/hour IP ceiling including invalid tokens.
+Class budgets run only after token validation. Teacher manual adds have a
+separate 200/hour budget per authenticated teacher token. Registration creation
+remains 20/hour per IP and admin login 10/15 minutes per IP. Limits are in-memory
+and reset on restart.
 
 If either secret is missing the server still starts and every public page works;
 it prints a warning and admin login refuses every attempt. It **fails closed** —
