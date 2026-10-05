@@ -316,7 +316,19 @@
           </div>
           <div class="field">
             <label for="t-school" data-i18n="label_school">School name</label>
-            <input type="text" id="t-school" name="school" required placeholder="Search your school..." data-i18n-placeholder="placeholder_school">
+            <input type="text" id="t-school" name="school" required placeholder="Search your school..." data-i18n-placeholder="placeholder_school" list="schoolOptions" autocomplete="off">
+            <!--
+              A <datalist> gives native browser autocomplete — type a few
+              letters and the browser suggests matches from schoolOptions
+              below, built from public/schools.js. It is deliberately NOT a
+              restriction: the input stays a free-text box, so a school
+              outside our South Auckland list (see schools.js for why it is
+              scoped that way) can still be typed in full and submitted
+              normally. Autocomplete that silently rejects anything not on
+              its list would lock out real schools just because our data is
+              incomplete — this one never does that.
+            -->
+            <datalist id="schoolOptions"></datalist>
           </div>
           <div class="field-row">
             <div class="field">
@@ -482,6 +494,7 @@
 <div id="site-footer"></div>
 
 <script src="/event-days.js"></script>
+<script src="/schools.js"></script>
 <script src="/translations.js"></script>
 <script src="/nav.js"></script>
 <script>
@@ -500,6 +513,17 @@
 
   // Build the "which day" choices from the single EVENT_DAYS list, so that
   // changing the dates is a one-file edit (see public/event-days.js).
+  // Populate the school-name datalist from public/schools.js. textContent
+  // is never used here because <option value="..."> IS the safe way to set
+  // a datalist option's text — there is no innerHTML involved, so no
+  // escaping step is needed, unlike the day-label building below.
+  const schoolOptions = document.getElementById('schoolOptions');
+  (window.SOUTH_AUCKLAND_SCHOOLS || []).forEach((name) => {
+    const opt = document.createElement('option');
+    opt.value = name;
+    schoolOptions.appendChild(opt);
+  });
+
   const dayChoices = document.getElementById('dayChoices');
   (window.EVENT_DAYS || []).forEach((day, i) => {
     const id = `t-day-${i}`;
