@@ -155,3 +155,14 @@ auto-reply confirmation email, school-name search behind the "Search your
 school…" box, real logo and event imagery, and load testing to the brief's
 1,000-user target. `file_name` on a registration is just a filename string — no
 file is stored. Don't add these unless asked.
+
+## Security headers
+
+`server.js` sets security headers before all other middleware: `Referrer-Policy:
+no-referrer` protects secret teacher URLs, `nosniff` prevents MIME sniffing, and
+`X-Frame-Options: DENY` / CSP `frame-ancestors 'none'` prevent framing this site.
+The CSP permits same-origin resources and fetches, data-image QR codes, Chart.js
+from cdnjs, and the Google Maps iframe. Scripts and styles currently require
+`'unsafe-inline'`; moving them into external files is separate work. There are
+no Google Fonts loads. Adding a new external resource requires updating the CSP
+and checking the affected pages in a browser. HSTS belongs to hosting/TLS.
