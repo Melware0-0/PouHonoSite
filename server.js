@@ -270,7 +270,7 @@ app.get('/api/admin/session', (req, res) => {
  * column is private until somebody deliberately adds it here.
  *
  * Tokens are excluded from general responses. Student links allow sign-up;
- * secret portal links allow class management. Return links only on creation.
+ * secret portal links allow class management. Return links only on creation or an admin teacher-link reset.
  *
  * NOTE: this is a fixed string written by us, never anything a visitor
  * sent — that is why it is safe to drop into the SQL below. Real VALUES
@@ -563,6 +563,23 @@ app.put('/api/registrations/:id', requireAdmin, (req, res) => {
          data.not_attending, data.session, data.date, data.notes, data.file_name, id);
 
   res.json(db.prepare(`SELECT ${REGISTRATION_COLUMNS} FROM registrations WHERE id = ?`).get(id));
+});
+
+/** Rotate the teacher credential; student links remain unchanged. ADMIN ONLY. */
+app.post('/api/registrations/:id/teacher-link', requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  const existing = db.prepare('SELECT id, is_walk_in FROM registrations WHERE id = ?').get(id);
+  if (!existing) {
+    return res.status(404).json({ errors: ['Record not found.'] });
+  }
+  if (isWalkInRegistration(existing)) {
+    return res.status(409).json({ errors: ['The walk-in container has no teacher portal.'] });
+  }
+
+  const teacherToken = crypto.randomUUID();
+  db.prepare('UPDATE registrations SET teacher_token = ? WHERE id = ?').run(teacherToken, id);
+  const portalLink = `${req.protocol}://${req.get('host')}/register/${teacherToken}`;
+  res.json({ portalLink });
 });
 
 /**

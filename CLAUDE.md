@@ -118,6 +118,7 @@ Existing teacher portal links from before this split must be replaced.
 | `POST /api/admin/login` · `logout` · `GET /api/admin/session` | public (login is rate limited) |
 | `GET /api/admin/students` | admin — every student in one query |
 | `GET /api/registrations` · `PUT`/`DELETE /api/registrations/:id` · `GET /api/registrations/:id/students` | admin |
+| `POST /api/registrations/:id/teacher-link` | admin — rotates teacher token and returns the new portal link |
 | `POST /api/registrations` | public, rate limited |
 | `GET /api/registrations/count` · `/api/registrations/token/:token` · `/api/walk-in-registration` | public |
 | `POST /api/registrations/token/:token/students` | public + valid token, rate limited |
