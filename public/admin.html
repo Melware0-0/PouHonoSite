@@ -500,15 +500,15 @@
     }
   });
 
-  // Logging out clears the cookie on the server side, so the "back" button
-  // cannot bring the dashboard back with its data intact.
+  // Reload only after the server confirms the session was revoked.
   document.getElementById('logoutBtn').addEventListener('click', async () => {
     try {
-      await fetch('/api/admin/logout', { method: 'POST', credentials: 'same-origin' });
+      const res = await fetch('/api/admin/logout', { method: 'POST', credentials: 'same-origin' });
+      if (!res.ok) throw new Error('logout failed');
+      location.replace('/admin.html');
     } catch (err) {
-      // Even if the request failed, drop back to the gate.
+      alert('Logout failed. Your session may still be active. Please try again.');
     }
-    showGate('You have been logged out.');
   });
 
   // --- Dashboard data ---

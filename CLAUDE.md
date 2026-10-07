@@ -72,6 +72,11 @@ If either secret is missing the server still starts and every public page works;
 it prints a warning and admin login refuses every attempt. It **fails closed** —
 never treat an unconfigured server as an open one.
 
+The signed `pou_hono_admin` cookie holds a random session ID backed by the
+`admin_sessions` SQLite table. Sessions expire after eight hours, logout deletes
+the server session, and changing `ADMIN_PASSWORD_HASH` invalidates all existing
+sessions. The cookie is httpOnly, SameSite=Lax, and Secure in production.
+
 ## The three access levels
 
 Every API route sits behind exactly one of these. When adding a route, the first

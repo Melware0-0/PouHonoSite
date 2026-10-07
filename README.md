@@ -72,6 +72,11 @@ If either is missing the server still starts and every public page works — it
 prints a loud warning and admin login refuses every attempt. It **fails
 closed**: an unconfigured server is never an open one.
 
+The signed `pou_hono_admin` cookie holds a random session ID backed by the
+`admin_sessions` SQLite table. Sessions expire after eight hours, logout deletes
+the server session, and changing `ADMIN_PASSWORD_HASH` invalidates all existing
+sessions. The cookie is httpOnly, SameSite=Lax, and Secure in production.
+
 ### Changing the event dates
 
 The three event days live in exactly one place: **`public/event-days.js`**.

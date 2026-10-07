@@ -105,15 +105,23 @@ if (!ADMIN_CONFIGURED) {
 // that setting it (on login) and clearing it (on logout) can never drift
 // apart — a cookie is only cleared if the options match how it was set.
 const ADMIN_COOKIE_NAME = 'pou_hono_admin';
+const ADMIN_SESSION_LIFETIME = 8 * 60 * 60 * 1000;
+const ADMIN_PASSWORD_FINGERPRINT = crypto.createHash('sha256').update(ADMIN_PASSWORD_HASH).digest('hex');
 const ADMIN_COOKIE_OPTIONS = {
   httpOnly: true,  // JavaScript in the page cannot read it — blunts XSS cookie theft
   signed: true,    // signed with SESSION_SECRET, so it cannot be forged
   sameSite: 'lax', // not sent on cross-site POSTs — basic CSRF protection
   secure: process.env.NODE_ENV === 'production', // HTTPS-only in production
-  maxAge: 8 * 60 * 60 * 1000 // 8 hours — one working day, then log in again
+  maxAge: ADMIN_SESSION_LIFETIME // 8 hours — one working day, then log in again
 };
 
 // --- Middleware ("things that run on every request") ---------------
+
+// Sensitive API responses must never be retained by browser or proxy caches.
+app.use('/api', (req, res, next) => {
+  res.set('Cache-Control', 'no-store');
+  next();
+});
 
 // Parse JSON request bodies, so req.body works for POST/PUT.
 app.use(express.json());
@@ -216,17 +224,26 @@ const adminLoginLimiter = makeLimiter(15 * 60 * 1000, 10);
  * requireAdmin — a "gatekeeper" placed in front of the admin-only routes.
  *
  * Express middleware runs before the route handler. If the visitor has a
- * valid signed admin cookie we call next() and the real handler runs; if
+ * valid server session from a signed cookie we call next() and the handler runs; if
  * not we stop right here with 401 ("Unauthorised") and the handler never
  * sees the request. Putting the check here rather than inside each route
  * means it is impossible to forget it on one of them.
  */
-function requireAdmin(req, res, next) {
-  // req.signedCookies only contains cookies whose signature was valid.
-  // If the server has no SESSION_SECRET this is always empty → fails closed.
-  if (ADMIN_CONFIGURED && req.signedCookies && req.signedCookies[ADMIN_COOKIE_NAME] === 'admin') {
-    return next();
+function hasAdminSession(req) {
+  if (!ADMIN_CONFIGURED) return false;
+  const id = req.signedCookies?.[ADMIN_COOKIE_NAME];
+  if (typeof id !== 'string' || !id) return false;
+  const session = db.prepare('SELECT expires_at, password_fingerprint FROM admin_sessions WHERE id = ?').get(id);
+  if (!session) return false;
+  if (session.expires_at <= Date.now() || session.password_fingerprint !== ADMIN_PASSWORD_FINGERPRINT) {
+    db.prepare('DELETE FROM admin_sessions WHERE id = ?').run(id);
+    return false;
   }
+  return true;
+}
+
+function requireAdmin(req, res, next) {
+  if (hasAdminSession(req)) return next();
   return res.status(401).json({ errors: ['Not authorised.'] });
 }
 
@@ -261,17 +278,27 @@ app.post('/api/admin/login', adminLoginLimiter, (req, res) => {
     return res.status(401).json({ errors: ['Incorrect password.'] });
   }
 
-  res.cookie(ADMIN_COOKIE_NAME, 'admin', ADMIN_COOKIE_OPTIONS);
+  const now = Date.now();
+  db.prepare('DELETE FROM admin_sessions WHERE expires_at <= ?').run(now);
+  const id = crypto.randomBytes(32).toString('hex');
+  db.prepare('INSERT INTO admin_sessions (id, created_at, expires_at, password_fingerprint) VALUES (?, ?, ?, ?)')
+    .run(id, now, now + ADMIN_SESSION_LIFETIME, ADMIN_PASSWORD_FINGERPRINT);
+  res.cookie(ADMIN_COOKIE_NAME, id, ADMIN_COOKIE_OPTIONS);
   res.json({ ok: true });
 });
 
 /**
  * POST /api/admin/logout
- * Clears the admin cookie. Always succeeds — logging out when you were
- * never logged in is harmless.
+ * Deletes the server session and clears the admin cookie. Always succeeds —
+ * logging out when you were never logged in is harmless.
  */
 app.post('/api/admin/logout', (req, res) => {
-  res.clearCookie(ADMIN_COOKIE_NAME, ADMIN_COOKIE_OPTIONS);
+  const id = req.signedCookies?.[ADMIN_COOKIE_NAME];
+  if (typeof id === 'string' && id) {
+    db.prepare('DELETE FROM admin_sessions WHERE id = ?').run(id);
+  }
+  const { maxAge, ...clearOptions } = ADMIN_COOKIE_OPTIONS;
+  res.clearCookie(ADMIN_COOKIE_NAME, clearOptions);
   res.json({ ok: true });
 });
 
@@ -281,9 +308,7 @@ app.post('/api/admin/logout', (req, res) => {
  * this on load so that refreshing the page doesn't force a fresh login.
  */
 app.get('/api/admin/session', (req, res) => {
-  const authenticated = Boolean(
-    ADMIN_CONFIGURED && req.signedCookies && req.signedCookies[ADMIN_COOKIE_NAME] === 'admin'
-  );
+  const authenticated = hasAdminSession(req);
   res.json({ authenticated });
 });
 
