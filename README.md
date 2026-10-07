@@ -50,6 +50,12 @@ short version.
 | `ADMIN_PASSWORD_HASH` | yes, for the admin dashboard | A **bcrypt hash** of the admin password — never the password itself |
 | `SESSION_SECRET` | yes, for the admin dashboard | A long random string used to sign the admin login cookie |
 | `PORT` | no | Port to listen on. Defaults to `3000` |
+| `TRUST_PROXY` | no | Proxy hop count (e.g. `1`) or Express proxy IP/subnet setting; unset uses the direct connection IP |
+| `PUBLIC_BASE_URL` | no | Canonical origin for share/portal links and QR codes (e.g. `https://register.example.nz`); trailing slashes removed; unset uses request protocol/host |
+| `NODE_ENV` | production hosting | Set to `production` for HTTPS-only admin cookies; serve over HTTPS |
+
+Set `TRUST_PROXY` to match your host's proxy topology so rate limits use the
+client IP. Only trust proxies that overwrite client-supplied forwarding headers.
 
 Generate the two values:
 
@@ -148,9 +154,12 @@ A teacher token is sent either as `Authorization: Bearer <token>` or as
 explicit columns rather than `SELECT *`, so a new column can never leak by
 accident.
 
-**Rate limits** (per IP): 20/hour on creating a registration, 60/hour on adding
-students (high enough that a teacher can type in a whole class), 10 per 15
-minutes on admin login.
+**Rate limits:** registration creation is 20/hour per IP; admin login is
+10 per 15 minutes per IP. Public student sign-ups allow 100/hour per class
+token and IP (60/hour for the public walk-in token), plus a 600/hour IP abuse
+ceiling including invalid tokens. Invalid tokens do not consume class budgets.
+Teacher manual adds have a separate 200/hour budget per authenticated teacher
+token. These in-memory limits reset when the server restarts.
 
 ---
 

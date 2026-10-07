@@ -136,6 +136,18 @@ app.use(cookieParser(SESSION_SECRET));
 // Serve the front-end files (index.html etc.) from /public.
 app.use(express.static(path.join(__dirname, 'public')));
 
+// --- Proxy and public link origin ----------------------------------
+// Configure only when supplied; numeric values are proxy hop counts.
+const trustProxy = process.env.TRUST_PROXY;
+if (trustProxy) {
+  app.set('trust proxy', /^\d+$/.test(trustProxy) ? Number(trustProxy)
+    : trustProxy === 'true' ? true : trustProxy === 'false' ? false : trustProxy);
+}
+
+function publicBaseUrl(req) {
+  return (process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
+}
+
 // --- Rate limiting ----------------------------------------------------
 /**
  * A rate limiter counts how many times one IP address has hit a route
@@ -151,10 +163,11 @@ app.use(express.static(path.join(__dirname, 'public')));
  * The limits below are applied per route rather than to the whole site,
  * because the sensible number is different for each one.
  */
-function makeLimiter(windowMs, limit) {
+function makeLimiter(windowMs, limit, options = {}) {
   return rateLimit({
     windowMs,
     limit,
+    ...options,
     standardHeaders: true, // report the limit in the modern RateLimit-* headers
     legacyHeaders: false,  // ...and not the old X-RateLimit-* ones
     // Reply in the same { errors: [...] } shape as the rest of the API, so
@@ -170,12 +183,26 @@ function makeLimiter(windowMs, limit) {
 // sitting stays well under 20, so this only ever catches a script.
 const createRegistrationLimiter = makeLimiter(60 * 60 * 1000, 20);
 
-// Adding a student: 60 per hour per IP.
-// Deliberately HIGHER than the registration limit, because one teacher
-// typing a whole class in by hand is a completely normal thing to do —
-// 30 children, plus corrections and re-entries, would blow through a
-// smaller limit and lock out the very person we built this for.
-const studentSignUpLimiter = makeLimiter(60 * 60 * 1000, 60);
+// Invalid tokens count only toward the broad abuse ceiling, not a class budget.
+const publicStudentIpLimiter = makeLimiter(60 * 60 * 1000, 600);
+const publicStudentSignUpLimiter = makeLimiter(60 * 60 * 1000,
+  (req) => isWalkInRegistration(req.studentRegistration) ? 60 : 100, {
+    // Normalize IPv6 as the default IP limiter does; pair it with a valid token.
+    keyGenerator: (req) => `${rateLimit.ipKeyGenerator(req.ip)}:${req.params.token}`
+  });
+const teacherStudentAddLimiter = makeLimiter(60 * 60 * 1000, 200, {
+  // The authenticated row identifies the teacher token, across IPs and token transports.
+  keyGenerator: (req) => String(req.registration.id)
+});
+
+function requireStudentRegistration(req, res, next) {
+  req.studentRegistration = db.prepare('SELECT id, is_walk_in FROM registrations WHERE token = ?')
+    .get(req.params.token);
+  if (!req.studentRegistration) {
+    return res.status(404).json({ errors: ['Registration link not found.'] });
+  }
+  next();
+}
 
 // Admin login: 10 attempts per 15 minutes per IP.
 // The tightest limit, because this is the one route where an attacker
@@ -496,8 +523,8 @@ app.post('/api/registrations', createRegistrationLimiter, async (req, res) => {
   // not from the row we just read back — which is why `created` can safely
   // leave the token column out. The teacher gets the link and the QR code;
   // the raw token is never a field of its own in the reply.
-  const link = `${req.protocol}://${req.get('host')}/join/${token}`;
-  const portalLink = `${req.protocol}://${req.get('host')}/register/${teacherToken}`;
+  const link = `${publicBaseUrl(req)}/join/${token}`;
+  const portalLink = `${publicBaseUrl(req)}/register/${teacherToken}`;
 
   let qrCode = null;
   try {
@@ -578,7 +605,7 @@ app.post('/api/registrations/:id/teacher-link', requireAdmin, (req, res) => {
 
   const teacherToken = crypto.randomUUID();
   db.prepare('UPDATE registrations SET teacher_token = ? WHERE id = ?').run(teacherToken, id);
-  const portalLink = `${req.protocol}://${req.get('host')}/register/${teacherToken}`;
+  const portalLink = `${publicBaseUrl(req)}/register/${teacherToken}`;
   res.json({ portalLink });
 });
 
@@ -755,7 +782,7 @@ app.get('/api/my-registration/qr', requireTeacherToken, async (req, res) => {
   // Authentication uses the teacher secret; the QR must use the student token.
   const { token } = db.prepare('SELECT token FROM registrations WHERE id = ?').get(req.registration.id);
 
-  const link = `${req.protocol}://${req.get('host')}/join/${token}`;
+  const link = `${publicBaseUrl(req)}/join/${token}`;
 
   let qrCode = null;
   try {
@@ -784,7 +811,7 @@ app.get('/api/my-registration/students', requireTeacherToken, (req, res) => {
  * POST /api/my-registration/students
  * A teacher adding one of their own students by hand.
  */
-app.post('/api/my-registration/students', studentSignUpLimiter, requireTeacherToken, (req, res) => {
+app.post('/api/my-registration/students', requireTeacherToken, teacherStudentAddLimiter, (req, res) => {
   const errors = validateStudent(req.body);
   if (errors.length) {
     return res.status(400).json({ errors });
@@ -939,14 +966,9 @@ app.get('/api/registrations/:id/students', requireAdmin, (req, res) => {
  * ids existed. A token is a random UUID: you cannot guess one, and the
  * only one you hold is your own.
  */
-app.post('/api/registrations/token/:token/students', studentSignUpLimiter, (req, res) => {
-  const registration = db
-    .prepare('SELECT id FROM registrations WHERE token = ?')
-    .get(req.params.token);
-
-  if (!registration) {
-    return res.status(404).json({ errors: ['Registration link not found.'] });
-  }
+app.post('/api/registrations/token/:token/students', publicStudentIpLimiter,
+  requireStudentRegistration, publicStudentSignUpLimiter, (req, res) => {
+  const registration = req.studentRegistration;
 
   const errors = validateStudent(req.body);
   if (errors.length) {
