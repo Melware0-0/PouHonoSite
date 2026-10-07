@@ -61,7 +61,7 @@ question is which one it needs.
 
 - **Public** — anyone. Can create a registration, and can sign a student up if
   they hold a valid link token. Cannot read anybody's data.
-- **Teacher** — holds the secret token from their own link. `requireTeacherToken`
+- **Teacher** — holds the secret token from their own portal link. `requireTeacherToken`
   reads it from an `Authorization: Bearer` header or `?token=`, looks up the
   registration and attaches it as `req.registration`. There is no teacher
   account or password: the unguessable token *is* the credential.
@@ -107,7 +107,11 @@ Two rules that are easy to break by accident:
 
 Page routes: `/join/:token` serves the **student** sign-up page (this is the
 link and QR a teacher shares); `/register/:token` serves the **teacher** portal.
-Both take the same token; an unknown token on either redirects to `/`.
+`/join` uses `registrations.token`; `/register` and teacher APIs use the separate
+secret `teacher_token`. Unknown tokens on either page redirect to `/`.
+Creation returns `link`, `qrCode`, and `portalLink`, never raw token fields.
+Startup backfills missing teacher tokens for classes; the walk-in stays NULL.
+Existing teacher portal links from before this split must be replaced.
 
 | Route | Gate |
 |---|---|
