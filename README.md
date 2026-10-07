@@ -222,3 +222,14 @@ Handled separately, or still to do:
 - Native-speaker review of the Māori, Samoan and Tongan translations
 - Load testing to the brief's 1,000-user target
 - Storing uploaded files — `file_name` is a filename string, not a stored file
+
+## Security headers
+
+`server.js` sets security headers before all other middleware: `Referrer-Policy:
+no-referrer` protects secret teacher URLs, `nosniff` prevents MIME sniffing, and
+`X-Frame-Options: DENY` / CSP `frame-ancestors 'none'` prevent framing this site.
+The CSP permits same-origin resources and fetches, data-image QR codes, Chart.js
+from cdnjs, and the Google Maps iframe. Scripts and styles currently require
+`'unsafe-inline'`; moving them into external files is separate work. There are
+no Google Fonts loads. Adding a new external resource requires updating the CSP
+and checking the affected pages in a browser. HSTS belongs to hosting/TLS.

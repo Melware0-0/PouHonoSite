@@ -52,6 +52,31 @@ const EVENT_DAYS = require('./public/event-days.js');
 
 const app = express();
 
+// Security headers apply to static pages, APIs, redirects and errors alike.
+// Inline scripts/styles are required by the current pages; moving them out is separate work.
+// HSTS is configured by the hosting/TLS layer, not this application.
+app.use((req, res, next) => {
+  res.set({
+    'Referrer-Policy': 'no-referrer', // Teacher portal URLs contain a credential.
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'Content-Security-Policy': [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com",
+      "style-src 'self' 'unsafe-inline'",
+      "font-src 'self'",
+      "img-src 'self' data:",
+      "connect-src 'self'",
+      "frame-src https://www.google.com https://maps.google.com",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "frame-ancestors 'none'"
+    ].join('; ')
+  });
+  next();
+});
+
 // The port can be changed with PORT in .env; 3000 is the normal default.
 const PORT = Number(process.env.PORT) || 3000;
 
