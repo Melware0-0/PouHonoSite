@@ -811,15 +811,15 @@
   function editRowHtml(r) {
     return `
       <tr class="edit-row" data-id="${r.id}">
-        <td><input type="text" class="edit-input" data-field="school" maxlength="200"></td>
-        <td><input type="text" class="edit-input" data-field="contact" maxlength="200"></td>
-        <td><input type="email" class="edit-input" data-field="email" maxlength="200"></td>
+        <td><input type="text" class="edit-input" data-field="school" maxlength="150"></td>
+        <td><input type="text" class="edit-input" data-field="contact" maxlength="100"></td>
+        <td><input type="email" class="edit-input" data-field="email" maxlength="254"></td>
         <td><input type="number" class="edit-input edit-input--num" data-field="students" min="1" max="500"></td>
         <td><input type="number" class="edit-input edit-input--num" data-field="adults" min="0" max="200"></td>
         <td><input type="number" class="edit-input edit-input--num" data-field="not_attending" min="0"></td>
         <td><input type="date" class="edit-input" data-field="date"></td>
         <td><span class="status-pill status-pill--${r.status.toLowerCase()}">${r.status}</span></td>
-        <td class="wrap-cell"><textarea class="edit-input" data-field="notes" rows="2" maxlength="2000"></textarea></td>
+        <td class="wrap-cell"><textarea class="edit-input" data-field="notes" rows="2" maxlength="1000"></textarea></td>
         <td class="actions-cell">
           <div class="row-actions">
             <button type="button" class="btn-link save-edit-btn" data-id="${r.id}">Save</button>

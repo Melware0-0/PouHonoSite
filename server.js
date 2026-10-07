@@ -386,15 +386,39 @@ function isRealDate(value) {
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === text;
 }
 
+function validateTextFields(body, fields) {
+  const errors = [];
+  for (const [field, label, maxLength] of fields) {
+    const value = body[field];
+    if (value === undefined) continue;
+    if (typeof value !== 'string') {
+      errors.push(`${label} must be a string.`);
+    } else if (value.length > maxLength) {
+      errors.push(`${label} must be ${maxLength} characters or fewer.`);
+    }
+  }
+  return errors;
+}
+
 function validateRegistration(body, options = {}) {
   const errors = [];
 
   if (!isJsonObject(body)) return ['Request body must be a JSON object.'];
 
-  if (!body.school || !String(body.school).trim()) {
+  errors.push(...validateTextFields(body, [
+    ['school', 'School name', 150],
+    ['contact', 'Contact person', 100],
+    ['email', 'Contact email', 254],
+    ['session', 'Session', 100],
+    ['notes', 'Notes', 1000],
+    ['file_name', 'File name', 255]
+  ]));
+  if (errors.length) return errors;
+
+  if (!body.school || !body.school.trim()) {
     errors.push('School name is required.');
   }
-  if (!body.contact || !String(body.contact).trim()) {
+  if (!body.contact || !body.contact.trim()) {
     errors.push('Contact person is required.');
   }
 
@@ -433,7 +457,7 @@ function validateRegistration(body, options = {}) {
   // Public teacher registration is restricted to the three advertised days.
   // An admin full edit may use another real date for a correction, make-up
   // visit, or a fourth day added late, so that route omits eventDaysOnly.
-  if (!isRealDate(body.date)) {
+  if (typeof body.date !== 'string' || !isRealDate(body.date)) {
     errors.push('A valid visit date is required.');
   } else if (options.eventDaysOnly && !EVENT_DAYS.some((day) => day.date === body.date)) {
     errors.push('Please select one of the available event days.');
@@ -451,16 +475,16 @@ function validateRegistration(body, options = {}) {
 /** Pulls just the fields we store out of a request body (ignores anything extra). */
 function cleanRegistration(body) {
   return {
-    school: String(body.school).trim(),
-    contact: String(body.contact).trim(),
-    email: String(body.email).trim(),
+    school: body.school.trim(),
+    contact: body.contact.trim(),
+    email: body.email.trim(),
     students: strictInteger(body.students),
     adults: body.adults === undefined ? 0 : strictInteger(body.adults),
     not_attending: body.not_attending === undefined ? 0 : strictInteger(body.not_attending),
-    session: String(body.session).trim(),
-    date: String(body.date),
-    notes: String(body.notes ?? '').trim(),
-    file_name: String(body.file_name ?? '').trim()
+    session: body.session.trim(),
+    date: body.date,
+    notes: (body.notes ?? '').trim(),
+    file_name: (body.file_name ?? '').trim()
   };
 }
 
@@ -669,7 +693,15 @@ function validateStudent(body) {
 
   if (!isJsonObject(body)) return ['Request body must be a JSON object.'];
 
-  if (!body.name || !String(body.name).trim()) {
+  errors.push(...validateTextFields(body, [
+    ['name', 'Student name', 100],
+    ['allergies', 'Allergies', 500],
+    ['year_group', 'Year group', 100],
+    ['preferred_session', 'Preferred session', 100]
+  ]));
+  if (errors.length) return errors;
+
+  if (!body.name || !body.name.trim()) {
     errors.push('Student name is required.');
   }
 
@@ -682,12 +714,12 @@ function validateStudent(body) {
   }
 
   const validYearGroups = [...Array.from({ length: 13 }, (_, i) => `Year ${i + 1}`), '18+'];
-  if (!validYearGroups.includes(String(body.year_group))) {
+  if (!validYearGroups.includes(body.year_group)) {
     errors.push('Please select a valid year group.');
   }
 
   const validSessions = ['Robotics', 'Gaming', 'Programming', 'Computer Building', 'Social Media'];
-  if (!validSessions.includes(String(body.preferred_session))) {
+  if (!validSessions.includes(body.preferred_session)) {
     errors.push('Please select a preferred session.');
   }
 
@@ -697,11 +729,11 @@ function validateStudent(body) {
 function cleanStudent(body) {
   const ageProvided = body.age !== undefined && body.age !== null && body.age !== '';
   return {
-    name: String(body.name).trim(),
+    name: body.name.trim(),
     age: ageProvided ? strictInteger(body.age) : null,
-    year_group: String(body.year_group).trim(),
-    allergies: String(body.allergies ?? '').trim(),
-    preferred_session: String(body.preferred_session).trim()
+    year_group: body.year_group.trim(),
+    allergies: (body.allergies ?? '').trim(),
+    preferred_session: body.preferred_session.trim()
   };
 }
 
@@ -1062,6 +1094,21 @@ app.get('/register/:token', (req, res) => {
     return res.status(404).type('text').send('Not found.');
   }
   res.sendFile('teacher.html', { root: PUBLIC_DIR });
+});
+
+// Unknown API routes use the same JSON error shape as known routes.
+app.use('/api', (req, res) => {
+  res.status(404).json({ errors: ['Not found.'] });
+});
+
+// Keep internal details in server logs, never in an HTTP response.
+app.use((err, req, res, next) => {
+  console.error('Request failed:', err);
+  if (res.headersSent) return next(err);
+  const status = Number.isInteger(err.status) && err.status >= 400 && err.status < 500
+    ? err.status : 500;
+  const message = status === 413 ? 'Request body too large.' : 'Something went wrong.';
+  res.status(status).json({ errors: [message] });
 });
 
 // --- Start ------------------------------------------------------------
