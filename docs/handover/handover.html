@@ -1,0 +1,735 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pou Hono — Handover Document</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  @page { size: A4; margin: 20mm 18mm 20mm 18mm; }
+  @page :first { margin: 0; }
+  :root {
+    --ink: #1b2130;
+    --muted: #5b6577;
+    --line: #dfe3ea;
+    --soft: #f4f6f9;
+    --green: #1f8a5b;
+    --green-soft: #e7f5ee;
+    --amber: #a86a00;
+    --amber-soft: #fff4dd;
+    --red: #b3342b;
+    --red-soft: #fdecea;
+    --navy: #1b2130;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { font-family: Inter, "Ubuntu Sans", "DejaVu Sans", sans-serif; color: var(--ink); font-size: 9.5pt; line-height: 1.5; margin: 0; background: #fff; }
+  code, .mono { font-family: "JetBrains Mono", "DejaVu Sans Mono", monospace; font-size: 8.6pt; }
+  code { background: var(--soft); border: 1px solid var(--line); border-radius: 3px; padding: 0 3px; }
+  pre { background: var(--soft); border: 1px solid var(--line); border-radius: 6px; padding: 9px 11px; white-space: pre-wrap; word-break: break-word; margin: 6px 0 10px; page-break-inside: avoid; }
+  pre code { background: none; border: 0; padding: 0; }
+  h1, h2, h3, h4 { line-height: 1.25; margin: 0; }
+  h2 { break-after: avoid; font-size: 17pt; font-weight: 800; margin: 0 0 4px; padding-top: 2px; }
+  h2 .num { color: var(--green); margin-right: 6px; }
+  h3 { break-after: avoid; font-size: 11.5pt; font-weight: 700; margin: 16px 0 5px; }
+  h4 { break-after: avoid; font-size: 10pt; font-weight: 700; margin: 12px 0 4px; }
+  p { margin: 0 0 8px; }
+  ul, ol { margin: 0 0 9px; padding-left: 18px; }
+  li { margin-bottom: 3px; }
+  a { color: var(--green); text-decoration: none; }
+  .lede { color: var(--muted); font-size: 10.5pt; margin-bottom: 12px; }
+  section { page-break-before: always; }
+  section.flow { page-break-before: auto; margin-top: 26px; }
+  table { width: 100%; border-collapse: collapse; margin: 6px 0 12px; font-size: 9pt; page-break-inside: auto; }
+  tr { page-break-inside: avoid; }
+  tr:first-child, tr:first-child + tr { break-after: avoid; page-break-after: avoid; }
+  th { text-align: left; font-weight: 700; background: var(--soft); border-bottom: 1.5px solid var(--line); padding: 6px 7px; vertical-align: bottom; }
+  td { border-bottom: 1px solid var(--line); padding: 6px 7px; vertical-align: top; }
+  .box { border-radius: 7px; padding: 10px 13px; margin: 10px 0 12px; page-break-inside: avoid; border: 1px solid var(--line); background: var(--soft); }
+  .box.good { background: var(--green-soft); border-color: #bfe3cf; }
+  .box.warn { background: var(--amber-soft); border-color: #f0d79c; }
+  .box.risk { background: var(--red-soft); border-color: #f2c2bd; }
+  .box strong.t { display: block; margin-bottom: 3px; }
+  .box p:last-child, .box ul:last-child { margin-bottom: 0; }
+  .tag { display: inline-block; font-size: 7.5pt; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; border-radius: 10px; padding: 1px 7px; white-space: nowrap; }
+  .tag.pub { background: #e8eefc; color: #2b4fae; }
+  .tag.tch { background: var(--amber-soft); color: var(--amber); }
+  .tag.adm { background: var(--red-soft); color: var(--red); }
+  .tag.ok { background: var(--green-soft); color: var(--green); }
+  .tag.todo { background: var(--amber-soft); color: var(--amber); }
+  .tag.no { background: #eceef2; color: var(--muted); }
+  .ph { background: #fff3c4; border: 1px dashed #d9b94a; padding: 0 4px; border-radius: 3px; color: #6d5600; }
+  .partband { background: var(--navy); color:#c9d1de; border-radius:7px; padding:9px 13px; margin-bottom:16px; font-size:9pt; }
+  .partband span { color:#5fd3a0; font-weight:800; text-transform:uppercase; letter-spacing:.1em; margin-right:8px; }
+  .partband code { background:none; border:0; color:#fff; }
+  .part { page-break-before: always; height: 240mm; display: flex; flex-direction: column; justify-content: center; }
+  .part .label { color: var(--green); font-weight: 700; letter-spacing: .12em; text-transform: uppercase; font-size: 10pt; }
+  .part h1 { font-size: 30pt; font-weight: 800; margin: 6px 0 12px; }
+  .part p { color: var(--muted); max-width: 120mm; font-size: 11pt; }
+  .cols { display: flex; gap: 14px; }
+  .cols > * { flex: 1; }
+  .shot { margin: 8px 0 16px; page-break-inside: avoid; }
+  .shot img { width: 100%; border: 1px solid var(--line); border-radius: 6px; display: block; }
+  .shot .cap { color: var(--muted); font-size: 8.5pt; margin-top: 4px; }
+  table.compact { font-size: 8.4pt; }
+  table.compact td, table.compact th { padding: 4px 6px; }
+  .check td:first-child { width: 18px; font-size: 11pt; color: var(--muted); }
+  .flowchart { display: flex; align-items: stretch; gap: 0; margin: 10px 0 14px; page-break-inside: avoid; }
+  .flowchart .step { flex: 1; background: var(--soft); border: 1px solid var(--line); border-radius: 7px; padding: 8px 9px; font-size: 8.6pt; }
+  .flowchart .step b { display: block; font-size: 9pt; margin-bottom: 2px; }
+  .flowchart .arrow { width: 16px; display: flex; align-items: center; justify-content: center; color: var(--muted); font-weight: 700; }
+
+  /* Cover */
+  .cover { height: 297mm; width: 210mm; background: var(--navy); color: #fff; padding: 26mm 22mm; display: flex; flex-direction: column; position: relative; overflow: hidden; }
+  .cover::before { content: ""; position: absolute; width: 170mm; height: 170mm; right: -60mm; top: -50mm; border-radius: 50%; background: radial-gradient(circle, rgba(31,170,110,.45), rgba(31,170,110,0) 70%); }
+  .cover .logos { display: flex; gap: 12px; align-items: center; position: relative; }
+  .cover .logos img { width: 54px; height: 54px; }
+  .cover .eyebrow { margin-top: 70mm; color: #5fd3a0; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; font-size: 10pt; position: relative; }
+  .cover h1 { font-size: 44pt; font-weight: 800; margin: 8px 0 6px; position: relative; }
+  .cover .sub { font-size: 15pt; color: #c9d1de; position: relative; }
+  .cover .meta { margin-top: auto; position: relative; font-size: 9.5pt; color: #c9d1de; border-top: 1px solid rgba(255,255,255,.18); padding-top: 12px; }
+  .cover .meta td { border: 0; padding: 2px 14px 2px 0; color: #c9d1de; }
+  .cover .meta td:first-child { color: #8f9bb0; width: 34mm; }
+
+  .toc { list-style: none; padding: 0; margin: 10px 0; }
+  .toc li { display: flex; border-bottom: 1px dotted var(--line); padding: 4px 0; margin: 0; }
+  .toc li .n { width: 26px; color: var(--green); font-weight: 700; }
+  .toc li.part-h { border: 0; margin-top: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; font-size: 8.5pt; }
+  .toc li span.d { color: var(--muted); margin-left: auto; font-size: 8.5pt; padding-left: 10px; text-align: right; }
+</style>
+</head>
+<body>
+
+<!-- ======================= COVER ======================= -->
+<div class="cover">
+  <div class="logos">
+    <img src="SACTH_Symbol-1.webp" alt="SACTH logo">
+    <img src="tcc_logo_symbol.webp" alt="The Cause Collective logo">
+  </div>
+  <div class="eyebrow">Project handover</div>
+  <h1>Pou Hono</h1>
+  <div class="sub">The registration website for NZ Tech Week 2027<br>SACTH (South Auckland Creative Tech Hub) &amp; The Cause Collective</div>
+  <div class="meta">
+    <table>
+      <tr><td>Version</td><td>1.1</td></tr>
+      <tr><td>Date</td><td>5 October 2026</td></tr>
+      <tr><td>Prepared by</td><td>Yahya El-Saddik</td></tr>
+      <tr><td>Codebase</td><td>GitHub repository <code style="background:none;border:0;color:#c9d1de">PouHonoSite</code>: <code style="background:none;border:0;color:#c9d1de">main</code> at <code style="background:none;border:0;color:#c9d1de">e0700be</code> plus the 14 fix branches in section 15</td></tr>
+      <tr><td>Status</td><td>Feature-complete and security-reviewed; fixes awaiting merge; not yet on production hosting</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- ======================= CONTENTS ======================= -->
+<section style="page-break-before: always">
+  <h2>Contents</h2>
+  <p class="lede">Part A is written for SACTH and The Cause Collective and needs no technical knowledge. Part B is a reference for whoever maintains or hosts the website next.</p>
+  <ul class="toc">
+    <li class="part-h">Part A — Overview for SACTH &amp; The Cause Collective</li>
+    <li><span class="n">1</span>Summary</li>
+    <li><span class="n">2</span>What has been delivered</li>
+    <li><span class="n">3</span>How it works</li>
+    <li><span class="n">4</span>Keeping the data safe</li>
+    <li><span class="n">5</span>Hosting: how it runs today, and how SACTH takes ownership</li>
+    <li><span class="n">6</span>Before going live: actions for you</li>
+    <li><span class="n">7</span>Known limitations and recommended next steps</li>
+    <li><span class="n">8</span>Not included in this project</li>
+    <li><span class="n">9</span>Contacts and ownership</li>
+    <li class="part-h">Part B — Technical reference</li>
+    <li><span class="n">10</span>Architecture and file map</li>
+    <li><span class="n">11</span>Database</li>
+    <li><span class="n">12</span>Access control and API reference</li>
+    <li><span class="n">13</span>Setup, configuration and operations</li>
+    <li><span class="n">14</span>Making common changes</li>
+    <li><span class="n">15</span>Repository status</li>
+    <li class="part-h">Appendices</li>
+    <li><span class="n">A</span>Screenshots</li>
+    <li><span class="n">B</span>Event-day check-in guide for staff</li>
+  </ul>
+</section>
+
+<!-- ======================= PART A ======================= -->
+<section>
+  <div class="partband"><span>Part A</span> Overview for SACTH &amp; The Cause Collective. No technical knowledge needed.</div>
+  <h2><span class="num">1</span>Summary</h2>
+  <p class="lede">Pou Hono is the registration website for NZ Tech Week 2027, run by SACTH and The Cause Collective for South Auckland schools, youth groups and individuals.</p>
+
+  <p>A <strong>teacher</strong> registers their class and is given two things: a link and QR code to share with their students, and a private link to their own class portal. <strong>Students</strong> open the shared link and register themselves, and they are grouped under their teacher's class automatically. Teachers can also type students in themselves. <strong>Individuals</strong> who are not part of a school group can register on their own. <strong>SACTH staff</strong> see everything in a password-protected admin dashboard and use it to check classes in on the day.</p>
+
+  <h3>Why it was built in-house</h3>
+  <p>The website collects children's names, ages, year groups and allergy or health information. Rather than putting that into a third-party sign-up service, Pou Hono keeps all of it in a single database file that sits with the website itself. Nothing is sent to an outside data service. This is the <strong>data sovereignty</strong> reason the project exists, and it shaped most of the design decisions in this document.</p>
+
+  <div class="box"><strong class="t">About this version</strong>
+    <p>A security and functional review on 5 October 2026 found and fixed 15 issues, plus one tidy-up. The fixes are on separate branches on GitHub, waiting for the development team to review and merge them (section 15). <strong>This document describes the website with those fixes merged.</strong></p>
+  </div>
+
+  <h3>Where things stand</h3>
+  <div class="cols">
+    <div class="box good"><strong class="t">Done</strong>
+      <ul>
+        <li>Teacher, student and individual registration</li>
+        <li>Shareable links and QR codes</li>
+        <li>Teacher class portal</li>
+        <li>Admin dashboard with filters, check-in, editing and removing classes and students, and resetting teacher links</li>
+        <li>Security review: separate student and teacher links, expiring admin sign-ins, input limits, browser protections</li>
+        <li>Four languages (draft translations)</li>
+        <li>Branding, logos and event photo gallery</li>
+      </ul>
+    </div>
+    <div class="box warn"><strong class="t">Needed before launch</strong>
+      <ul>
+        <li>Proper hosting (see section 5). <strong>Vercel is not suitable for the database.</strong></li>
+        <li>Merge the 14 fix branches (section 15)</li>
+        <li>Confirmed event dates</li>
+        <li>Fluent-speaker review of te reo Māori, Samoan and Tongan text</li>
+        <li>Real admin password; demo data cleared</li>
+        <li>Privacy and consent wording (see section 7)</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2><span class="num">2</span>What has been delivered</h2>
+  <p class="lede">Everything below is working in the current version. Screenshots are in Appendix A.</p>
+
+  <table>
+    <tr><th style="width:24%">Who</th><th>What they can do</th></tr>
+    <tr><td><strong>Anyone visiting</strong><br><span class="mono" style="color:var(--muted)">Home, FAQ</span></td>
+      <td>
+        <ul style="margin:0">
+          <li>Home page: about the event and SACTH, the five sessions (Robotics, Gaming, Programming, Computer Building, Social Media), a live count of registered classes, a $500 prize giveaway banner, a photo gallery from past events with full-size viewing, and a map to 15 Earl Richardson Avenue, Wiri.</li>
+          <li>FAQ page with seven common questions.</li>
+          <li>The SACTH and The Cause Collective logos in the header, and a contact email in the footer.</li>
+        </ul>
+      </td></tr>
+    <tr><td><strong>Teachers</strong><br><span class="mono" style="color:var(--muted)">Register page</span></td>
+      <td>
+        <ul style="margin:0">
+          <li>Three-step registration: their details (name, email, school, number of students and adults, how many students are not attending, and which of the three event days), then accepting the terms, then a confirmation screen.</li>
+          <li>The confirmation screen gives a <strong>student link and QR code</strong> to share, and a separate <strong>portal link</strong> to bookmark.</li>
+          <li>They can start adding students by hand straight away.</li>
+        </ul>
+      </td></tr>
+    <tr><td><strong>Teacher class portal</strong><br><span class="mono" style="color:var(--muted)">Private link</span></td>
+      <td>Shows the class details, the student link and QR code again, every student signed up so far (including allergies), a form to add a student by hand, and a button to remove a student.</td></tr>
+    <tr><td><strong>Students</strong><br><span class="mono" style="color:var(--muted)">Shared link / QR</span></td>
+      <td>A short form: name, age, year group, allergies or health conditions (optional) and preferred session. Before submitting they agree to a short statement about how their information is used. Works well on a phone.</td></tr>
+    <tr><td><strong>Individuals</strong></td>
+      <td>Choose "I'm an Individual" on the Register page and fill in the same short form, without needing a school or teacher.</td></tr>
+    <tr><td><strong>SACTH staff (admin)</strong><br><span class="mono" style="color:var(--muted)">Admin dashboard</span></td>
+      <td>
+        <ul style="margin:0">
+          <li>Password-protected sign-in that ends after 8 hours, or straight away on logout.</li>
+          <li>Headline figures: total registrations, total students expected, total adults, most popular session.</li>
+          <li>A table of every registered class, with filters by school name, activity, year group, age range and arrival status.</li>
+          <li><strong>Check-in:</strong> click a class's status to switch it between <em>Pending</em> and <em>Arrived</em>.</li>
+          <li><strong>Edit or delete a class.</strong> Deleting asks for confirmation first, and also removes that class's students.</li>
+          <li><strong>Edit or remove individual students.</strong></li>
+          <li><strong>Reset a teacher's portal link</strong> if it has been lost or shared by mistake. The old link stops working and the admin gets a new one to send to the teacher.</li>
+          <li>A pie chart of students by preferred session, which updates with the filters.</li>
+        </ul>
+      </td></tr>
+  </table>
+
+  <h3>Languages</h3>
+  <p>The Register, student sign-up and teacher portal pages can be switched between <strong>English, te reo Māori, gagana Sāmoa and lea faka-Tonga</strong> with the language menu in the header. The home page, FAQ and admin dashboard are English only.</p>
+  <div class="box warn"><strong class="t">The translations are drafts</strong>
+    <p>The Māori, Samoan and Tongan text was produced with AI and <strong>has not been checked by fluent speakers</strong>. It must be reviewed by someone fluent in each language before the site is used with real families. See section 6.</p>
+  </div>
+</section>
+
+<section class="flow">
+  <h2><span class="num">3</span>How it works</h2>
+  <p class="lede">The full journey, from a teacher signing up to a class arriving on the day.</p>
+
+  <div class="flowchart">
+    <div class="step"><b>1. Teacher registers</b>Fills in class details and picks an event day.</div>
+    <div class="arrow">→</div>
+    <div class="step"><b>2. Gets two links</b>A student link and QR to share, and a private portal link.</div>
+    <div class="arrow">→</div>
+    <div class="step"><b>3. Students sign up</b>Through the link or QR, or the teacher adds them.</div>
+    <div class="arrow">→</div>
+    <div class="step"><b>4. Admin sees it all</b>Numbers, filters and the session chart. Refresh to see new sign-ups.</div>
+    <div class="arrow">→</div>
+    <div class="step"><b>5. Event day</b>Staff mark each class <em>Arrived</em>.</div>
+  </div>
+
+  <h3>Two links, two different codes</h3>
+  <p>When a teacher registers, the website creates <strong>two</strong> long random codes for the class, one for each link:</p>
+  <table>
+    <tr><th style="width:28%">Link</th><th>Who it is for</th><th>What it can do</th></tr>
+    <tr><td><code>…/join/&lt;student code&gt;</code></td><td>Students. Share with the class or print as a QR code.</td><td>Adds a student to that class and shows its school name. It can't open the teacher portal or show student details.</td></tr>
+    <tr><td><code>…/register/&lt;teacher code&gt;</code></td><td>The teacher only. <strong>Do not share.</strong></td><td>Opens the teacher's class portal: the class list, including allergies, and adding or removing students.</td></tr>
+  </table>
+  <p>There are no teacher accounts or passwords. Having the teacher code <em>is</em> the permission, so a teacher can start straight away with nothing to set up. The codes are far too long to guess. If a portal link is lost or shared by mistake, an admin can reset it from the dashboard: the old link stops working immediately, and the student link and QR code keep working.</p>
+
+  <h3>Individuals</h3>
+  <p>Behind the scenes, everyone who registers as an individual is grouped under one shared record called "Individual / Walk-in". It never appears as a class in the admin table, and it can never open a teacher portal. Individual sign-ups are still counted in the dashboard figures and the session chart.</p>
+
+  <h3>What the admin figures mean</h3>
+  <ul>
+    <li><strong>Total registrations:</strong> the number of classes that have registered (individuals not included).</li>
+    <li><strong>Total students:</strong> the expected number of students: each class's booked number minus those not attending, plus individual sign-ups.</li>
+    <li><strong>Most popular session</strong> and the <strong>pie chart</strong> come from the students who have actually signed up, because a session is chosen by each student, not by the class.</li>
+  </ul>
+</section>
+
+<section>
+  <h2><span class="num">4</span>Keeping the data safe</h2>
+  <p class="lede">The website holds children's personal and health information, so access is deliberately tight.</p>
+
+  <h3>Who can see what</h3>
+  <table>
+    <tr><th style="width:20%">Level</th><th>Can</th><th>Cannot</th></tr>
+    <tr><td><span class="tag pub">Public</span><br>anyone</td><td>Register a class. Sign a student up, if they have a valid student link.</td><td>See student or teacher details. A student link shows the school name; the home page receives only a count.</td></tr>
+    <tr><td><span class="tag tch">Teacher</span><br>has a portal link</td><td>See and manage <strong>their own class only</strong>.</td><td>See or change any other class, or the individual sign-ups.</td></tr>
+    <tr><td><span class="tag adm">Admin</span><br>has the password</td><td>See and manage everything.</td><td>—</td></tr>
+  </table>
+
+  <h3>Protections already in place</h3>
+  <ul>
+    <li><strong>The admin password is never stored.</strong> Only a scrambled, one-way version of it is kept (a "bcrypt hash"), so the password can't be read back out of the server's settings.</li>
+    <li><strong>Admin sign-in expires and can be revoked.</strong> Each sign-in gets its own random session, recorded on the server, which ends after 8 hours, on logout, or when the admin password is changed. A copied sign-in stops working at that point too. Logging out also clears the dashboard from the screen.</li>
+    <li><strong>Limits on repeated attempts.</strong> 10 admin login attempts per 15 minutes and 20 class registrations per hour from one internet address. Student sign-ups allow 100 an hour per class and internet address (60 for individuals), with a ceiling of 600 per address. Teachers can add 200 an hour per class. These slow automated password guessing and junk sign-ups.</li>
+    <li><strong>Codes are never handed out.</strong> A class's codes only ever appear inside its own links. The one exception is the shared code used for individual sign-ups, which is public by design and can only add a sign-up.</li>
+    <li><strong>Common attacks are blocked.</strong> Registration and student fields are checked on the server, with text limits (for example 100 characters for a name and 500 for allergies). Error messages never reveal how the website works inside. Whatever is typed is handled safely, so it cannot be used to tamper with the database (SQL injection) or to run harmful scripts on other people's screens (cross-site scripting). The student consent tick-box is checked on the form, but the website does not keep a record that it was ticked.</li>
+    <li><strong>Browser protections.</strong> The website tells browsers not to pass its addresses on to other sites, not to show it inside other sites, and to limit where scripts can load from; inline scripts and one outside script source are still allowed. The admin dashboard loads no outside code at all.</li>
+    <li><strong>It fails safe.</strong> If the admin password or secret key is missing from the settings, the public pages keep working but the admin dashboard refuses <em>everyone</em>. It never falls open.</li>
+  </ul>
+
+  <h3>Your responsibilities</h3>
+  <ul>
+    <li>Keep the admin password to the smallest group that needs it, and change it if someone leaves (Part B, section 13).</li>
+    <li>Keep the server settings file (<code>.env</code>) private. It holds the password hash and the secret key.</li>
+    <li>Tell teachers their <strong>portal link is private</strong>. If one is lost or shared, reset it from the dashboard and send the teacher the new one.</li>
+    <li>Make sure the hosting you choose is secure and backed up (section 5).</li>
+  </ul>
+</section>
+
+<section>
+  <h2><span class="num">5</span>Hosting: how it runs today, and how SACTH takes ownership</h2>
+  <p class="lede">The site is online at a free Vercel address, but only the pages are live: registrations can't work there. This section explains the current setup, where to move it, and every account SACTH needs to own.</p>
+
+  <h3>5.1 How it is deployed today</h3>
+  <table class="compact">
+    <tr><th style="width:26%">Item</th><th>Current state (checked 5 October 2026)</th></tr>
+    <tr><td>Web address</td><td><code>https://pou-hono-site.vercel.app</code>. This is a free sub-address of Vercel's own domain, so SACTH cannot buy or independently own it. A project transfer may preserve the address; confirm this with Vercel before relying on it.</td></tr>
+    <tr><td>Where it runs</td><td>A Vercel project, serving the pages through Vercel's global network.</td></tr>
+    <tr><td>Who owns it</td><td>Deployed from the GitHub repository <code>Melware0-0/PouHonoSite</code>. The live pages are byte-for-byte identical to the current <code>main</code> (commit <code>e0700be</code>, "Deploy"). Vercel's free Hobby plan is for personal, non-commercial use. <span class="ph">[confirm account and plan with the team member who set it up]</span></td></tr>
+    <tr><td>What it serves</td><td>Only the <code>public/</code> folder, as a static website: the home page, FAQ, the forms and the admin login screen all display. <strong>The server part of the website isn't running</strong>: every <code>/api/…</code> address returns Vercel's "NOT_FOUND" page.</td></tr>
+    <tr><td>What that means</td><td>Registering a class, student sign-up, the teacher portal, admin login and the home page counter <strong>all fail on the live site</strong>. No registration data is stored on Vercel. Server files (<code>server.js</code>, <code>.env</code>, the database) are <em>not</em> exposed.</td></tr>
+  </table>
+
+  <div class="box risk"><strong class="t">Why Vercel can't simply be switched on for registrations</strong>
+    <p>Pou Hono keeps all its data in one database file beside the website. Vercel runs server code as short-lived "serverless" functions on a <strong>read-only file system</strong>. The only writable space is temporary, gets wiped, and isn't shared between copies of the site. So even with the server part enabled, registrations would fail to save or quietly disappear. Vercel says this in its own guidance on SQLite. Vercel suits the pages, not the data. <span style="color:var(--muted);font-size:8pt">(Provider details in this section are from vercel.com/docs, docs.railway.com, internetnz.nz and docs.github.com, October 2026; confirm before signing up.)</span></p>
+  </div>
+
+  <h3>5.2 What the website needs from a host</h3>
+  <table class="check">
+    <tr><td>☐</td><td><strong>A Node.js server that keeps running</strong> (version 22 or 24), not serverless functions.</td></tr>
+    <tr><td>☐</td><td><strong>Permanent disk storage</strong> (a "volume") that survives restarts and redeployments, for the database file.</td></tr>
+    <tr><td>☐</td><td><strong>HTTPS</strong> and a custom domain name.</td></tr>
+    <tr><td>☐</td><td><strong>Private settings</strong> (environment variables) for the admin password hash and secret key.</td></tr>
+    <tr><td>☐</td><td><strong>Backups</strong> of the volume, or a way to copy the database file off regularly.</td></tr>
+    <tr><td>☐</td><td><em>Ideally:</em> servers in <strong>New Zealand or Australia</strong>, in line with the data-sovereignty goal.</td></tr>
+  </table>
+
+  <h3>5.3 Recommended: move to Railway</h3>
+  <p>Railway runs Pou Hono as it is, with a permanent volume, HTTPS and custom domains built in. Its nearest region is <strong>Singapore</strong>; it has no NZ or Australian region, so the data would be held offshore. If keeping data onshore is a must, use any NZ or Australian host that meets 5.2; the same steps apply.</p>
+  <ol>
+    <li><strong>SACTH creates the Railway account</strong> with an organisation email (not a developer's) and adds a payment method. A paid plan is needed for an always-on service with a volume. Invite developers as members.</li>
+    <li><strong>New project → Deploy from GitHub repo</strong>, choosing the repository after it has moved to SACTH's GitHub (5.4). Railway runs <code>npm start</code>.</li>
+    <li><strong>Add a volume</strong> to the service, mounted at <code>/data</code>. Choose the Singapore region before adding it, because moving a volume between regions later causes downtime. Run a single instance: the database is one file.</li>
+    <li><strong>Set the variables:</strong> <code>NODE_ENV=production</code>, <code>ADMIN_PASSWORD_HASH</code>, <code>SESSION_SECRET</code>, <code>DATABASE_PATH=/data/pou-hono.db</code>, <code>TRUST_PROXY=1</code>, and <code>PUBLIC_BASE_URL=https://&lt;your domain&gt;</code>. Generate the hash and secret fresh (section 13). The last three come from the fix branches in section 15. After deploying, confirm the rate limits see real visitor addresses. Let the host set <code>PORT</code>.</li>
+    <li><strong>Clear the demo data</strong> before the first real start (section 13).</li>
+    <li><strong>Add the custom domain</strong> in the service's networking settings. Railway shows a <code>CNAME</code> and a <code>TXT</code> record. Add <em>both</em> at the domain's DNS provider; the domain won't verify with the CNAME alone. Railway then issues the HTTPS certificate automatically, though DNS changes can take up to 72 hours.</li>
+    <li><strong>Test end to end</strong> on the real domain: register a test class, scan its QR code on a phone, sign up a student, check the teacher portal and admin dashboard, then delete the test class.</li>
+    <li><strong>Retire the Vercel deployment</strong> so it can't be mistaken for the real site.</li>
+  </ol>
+
+  <h3>5.4 What SACTH needs to own, and how to take it over</h3>
+  <table class="compact">
+    <tr><th style="width:18%">Asset</th><th style="width:24%">Today</th><th>How SACTH takes ownership</th></tr>
+    <tr><td><strong>Domain name</strong></td><td>None. <code>pou-hono-site.vercel.app</code> belongs to Vercel.</td>
+      <td><strong>Simplest:</strong> use a sub-address of an existing domain controlled by SACTH, e.g. <code>register.sacth.nz</code> if SACTH controls it. Nothing to buy; whoever manages <code>sacth.nz</code>'s DNS adds Railway's two records. <strong>Or buy a new name</strong> (e.g. a <code>.nz</code> or <code>.org.nz</code>) from any authorised .nz registrar (InternetNZ, which runs .nz, doesn't sell directly). Register it in <strong>SACTH's or The Cause Collective's legal name</strong>, never a developer's; turn on auto-renew; keep the registrar login with SACTH.</td></tr>
+    <tr><td><strong>Source code</strong> (GitHub)</td><td>Repository namespace <code>Melware0-0</code>; confirm its owner and transfer authority.</td>
+      <td>SACTH creates a free GitHub organisation. The current owner uses <em>Settings → Transfer ownership</em> on the repository to move it there; GitHub redirects the old address. Developers stay on as collaborators. Agree code ownership and licence in writing; there is no licence file.</td></tr>
+    <tr><td><strong>Hosting</strong></td><td>Vercel; account ownership needs confirmation.</td>
+      <td>Create the Railway project under SACTH's account from the start (5.3). If Vercel is kept for anything, move the project to a SACTH-owned Vercel team with <em>Project Settings → General → Transfer Project</em> (the sender must own the source team and be a member of the receiving one). Otherwise delete it.</td></tr>
+    <tr><td><strong>Admin password &amp; secret key</strong></td><td>Not recorded in the repository; confirm who holds development credentials.</td>
+      <td>SACTH generates its own for production, stores them in a password manager, and enters them only in the host's settings. After handover, rotate both so no developer holds live credentials.</td></tr>
+    <tr><td><strong>The data</strong></td><td>None live yet.</td>
+      <td>Once live, the data is the single database file on the volume. SACTH owns it and its backups, decides how long it's kept (section 7), and controls who can download it.</td></tr>
+    <tr><td><strong>Billing &amp; recovery</strong></td><td>—</td>
+      <td>Every account above (registrar, GitHub organisation, Railway) uses a shared SACTH email with at least two SACTH owners, so access doesn't depend on one person.</td></tr>
+  </table>
+</section>
+
+<section>
+  <h2><span class="num">6</span>Before going live: actions for you</h2>
+  <p class="lede">Nothing here needs new features built. These are decisions, content and setup.</p>
+
+  <table class="check">
+    <tr><th></th><th style="width:56%">Action</th><th>Why</th><th style="width:15%">Who</th></tr>
+    <tr><td>☐</td><td><strong>Choose hosting and deploy</strong> (section 5)</td><td>Vercel cannot keep registrations.</td><td>SACTH + developer</td></tr>
+    <tr><td>☐</td><td><strong>Review and merge the 14 fix branches</strong> (section 15)</td><td>They contain the security fixes this document assumes.</td><td>Developer</td></tr>
+    <tr><td>☐</td><td><strong>Confirm the three event dates</strong></td><td>The current dates, Tuesday 18 to Thursday 20 May 2027, are <strong>placeholders</strong>.</td><td>SACTH</td></tr>
+    <tr><td>☐</td><td><strong>Fluent-speaker review</strong> of te reo Māori, gagana Sāmoa and lea faka-Tonga</td><td>The current text is AI-generated and unchecked.</td><td>SACTH</td></tr>
+    <tr><td>☐</td><td><strong>Set the real admin password</strong></td><td>The brief's example password, <code>SACTH2027</code>, is publicly known and must not be used anywhere.</td><td>Developer</td></tr>
+    <tr><td>☐</td><td><strong>Clear the demo data</strong></td><td>The site creates five example schools and eighteen example children on a new database, so the dashboard can be demonstrated.</td><td>Developer</td></tr>
+    <tr><td>☐</td><td><strong>Review the wording</strong> of the teacher terms, the student consent statement and the FAQ answers</td><td>These are legal and safety statements made in your name.</td><td>SACTH</td></tr>
+    <tr><td>☐</td><td><strong>Confirm the $500 prize giveaway</strong> banner on the home page</td><td>It is a public promise.</td><td>SACTH</td></tr>
+    <tr><td>☐</td><td><strong>Privacy and consent</strong> (section 7)</td><td>The site collects children's health information.</td><td>SACTH</td></tr>
+    <tr><td>☐</td><td><strong>Decide who holds the admin password</strong> and fill in section 9</td><td>So someone owns the system after handover.</td><td>SACTH</td></tr>
+    <tr><td>☐</td><td><strong>Merge the school-name search</strong> (section 8)</td><td>It is built, but not yet part of the main version.</td><td>Developer</td></tr>
+  </table>
+</section>
+
+<section>
+  <h2><span class="num">7</span>Known limitations and recommended next steps</h2>
+  <p class="lede">These are the edges of what was in scope, listed so nobody is surprised by them.</p>
+
+  <h3>Privacy and consent <span class="tag adm">priority</span></h3>
+  <div class="box risk">
+    <p>The website collects children's names, ages and health information, which puts it under the <strong>NZ Privacy Act 2020</strong>. The following are not yet in place:</p>
+    <ul>
+      <li>A <strong>privacy statement</strong> page explaining what is collected, why, who can see it, how long it is kept and how to ask for it to be corrected or deleted. The student form has a one-paragraph statement, but there is no full policy.</li>
+      <li>A <strong>parent or caregiver consent</strong> step. At the moment students agree for themselves, at any age.</li>
+      <li>A <strong>retention plan</strong>: when the data will be deleted after the event, and who does it.</li>
+    </ul>
+    <p>We recommend SACTH settle these before registrations open. Building a privacy page and a consent tick-box is a small piece of work once the wording is agreed.</p>
+  </div>
+
+  <h3>Admin dashboard</h3>
+  <ul>
+    <li><strong>No export or print view.</strong> There is no CSV or Excel download, and no printable class list with allergies for the day.</li>
+    <li><strong>One shared admin password</strong>, with no individual staff accounts and no log of who changed what.</li>
+    <li><strong>The dashboard loads every child's details.</strong> To draw its figures, the dashboard downloads all students, including names and allergies, even though the figures only need ages, year groups and sessions. Trimming this is recommended once the admin student-editing feature is finalised, since that feature may rely on it.</li>
+    <li>On smaller laptop screens the registrations table scrolls sideways to reach the Status and Actions columns.</li>
+  </ul>
+
+  <h3>Teachers</h3>
+  <ul>
+    <li>Teachers <strong>cannot change their own class details</strong> after registering. The portal tells them to contact SACTH, and an admin makes the change.</li>
+    <li>A teacher who <strong>loses their portal link</strong> has to ask SACTH, and an admin resets it. There is no "email me my link", because confirmation emails are not part of this project (section 8).</li>
+  </ul>
+
+  <h3>Other</h3>
+  <ul>
+    <li>The home page map loads from Google; it receives no registration data. Everything else, including the admin chart library, is served from the website itself.</li>
+    <li>Attempt limits are kept in memory, so they reset whenever the server restarts.</li>
+    <li>There are <strong>no automated tests</strong> (changes are checked by hand), and no load testing yet (section 8).</li>
+  </ul>
+</section>
+
+<section>
+  <h2><span class="num">8</span>Not included in this project</h2>
+  <p class="lede">These were either handled separately, deliberately left out, or are built but not yet switched on.</p>
+  <table>
+    <tr><th style="width:34%">Item</th><th style="width:16%">Status</th><th>Notes</th></tr>
+    <tr><td>School-name search on the teacher form</td><td><span class="tag todo">built, not merged</span></td><td>The "Search your school…" box is a plain text field in the main version. A finished search over South Auckland school names exists on a separate branch (<code>schoolsearch</code>) and needs merging and testing.</td></tr>
+    <tr><td>Production hosting and deployment</td><td><span class="tag todo">to do</span></td><td>See section 5.</td></tr>
+    <tr><td>Confirmation email to teachers</td><td><span class="tag no">not in scope</span></td><td>Handled separately. No email is sent today. Teachers must copy their links from the confirmation screen.</td></tr>
+    <tr><td>Load testing to 1,000 users</td><td><span class="tag no">not in scope</span></td><td>Recommended before launch if large numbers are expected at once.</td></tr>
+    <tr><td>Uploading paper forms</td><td><span class="tag no">not in scope</span></td><td>The database has space to record a file name, but no upload feature exists and no files are stored.</td></tr>
+  </table>
+</section>
+
+<section class="flow">
+  <h2><span class="num">9</span>Contacts and ownership</h2>
+  <p class="lede">To be completed by SACTH and the developer at handover.</p>
+  <table>
+    <tr><th style="width:38%">Role</th><th>Name and contact</th></tr>
+    <tr><td>Project owner (SACTH / The Cause Collective)</td><td><span class="ph">[name, email, phone]</span></td></tr>
+    <tr><td>Holder(s) of the admin password</td><td><span class="ph">[names]</span></td></tr>
+    <tr><td>Hosting account owner</td><td><span class="ph">[provider, account owner, billing contact]</span></td></tr>
+    <tr><td>Domain name owner</td><td><span class="ph">[domain, registrar, account owner]</span></td></tr>
+    <tr><td>GitHub repository owner</td><td><span class="ph">[account / organisation]</span></td></tr>
+    <tr><td>Technical support after handover</td><td><span class="ph">[name, email, support terms]</span></td></tr>
+    <tr><td>Translation reviewers</td><td>te reo Māori: <span class="ph">[name]</span><br>gagana Sāmoa: <span class="ph">[name]</span><br>lea faka-Tonga: <span class="ph">[name]</span></td></tr>
+    <tr><td>Public contact email on the website</td><td><code>sacth@thecausecollective.org.nz</code>. Confirm this is correct.</td></tr>
+  </table>
+</section>
+
+<!-- ======================= PART B ======================= -->
+<section>
+  <div class="partband"><span>Part B</span> Technical reference for the developer who hosts, maintains or extends Pou Hono. The repository's <code>README.md</code> and <code>CLAUDE.md</code> cover the same ground and should be kept up to date alongside the code.</div>
+  <h2><span class="num">10</span>Architecture and file map</h2>
+  <p class="lede">Node.js + Express 5, a single-file SQLite database via <code>better-sqlite3</code>, and plain HTML/CSS/JavaScript served as static files. No framework, no bundler and no build step: you edit a file and reload the page.</p>
+
+<pre><code> Browser                                  Server
+┌─────────────────────────┐   fetch()   ┌────────────────────┐    ┌──────────────┐
+│ public/*.html           │ ──────────► │ server.js          │ ─► │ pou-hono.db  │
+│ forms, QR, dashboard    │ ◄────────── │ Express + REST API │ ◄─ │ SQLite file  │
+└─────────────────────────┘    JSON     │ auth, validation   │    └──────────────┘
+                                        └────────────────────┘</code></pre>
+
+  <table>
+    <tr><th style="width:30%">File</th><th>Purpose</th></tr>
+    <tr><td><code>server.js</code></td><td>The entire back end: Express app, security headers, static serving of <code>public/</code>, rate limiters, the <code>requireAdmin</code> and <code>requireTeacherToken</code> middlewares, validation, every route, and the final error handler.</td></tr>
+    <tr><td><code>db.js</code></td><td>Opens the database at <code>DATABASE_PATH</code> or next to itself (WAL mode, foreign keys on), creates the schema including <code>admin_sessions</code>, adds missing columns (<code>not_attending</code>, <code>is_walk_in</code>, <code>teacher_token</code>), backfills teacher tokens, creates the walk-in container, and seeds demo data on an empty database. (The <code>token</code>-column migration for very old databases is on <code>origin/schoolsearch</code>.)</td></tr>
+    <tr><td><code>public/index.html</code></td><td>Home page: hero, live counter, sessions, prize banner, photo gallery with lightbox, map.</td></tr>
+    <tr><td><code>public/register.html</code></td><td>Teacher path (3 steps) and the entry point for the individual path.</td></tr>
+    <tr><td><code>public/teacher.html</code></td><td>Teacher class portal, served at <code>/register/:token</code>.</td></tr>
+    <tr><td><code>public/student.html</code></td><td>Student sign-up, served at <code>/join/:token</code>, or directly for individuals.</td></tr>
+    <tr><td><code>public/admin.html</code></td><td>Admin dashboard (login gate, stats, filters, table with edit, reset teacher link and delete, Chart.js pie chart).</td></tr>
+    <tr><td><code>public/vendor/</code></td><td>Self-hosted Chart.js and its licence.</td></tr>
+    <tr><td><code>public/faq.html</code></td><td>FAQ.</td></tr>
+    <tr><td><code>public/nav.js</code></td><td>Injects the shared header (logos, menu, language picker) and footer into every page.</td></tr>
+    <tr><td><code>public/translations.js</code></td><td>UI strings in <code>en</code>, <code>mi</code>, <code>sm</code>, <code>to</code>, applied via <code>data-i18n</code> and <code>data-i18n-placeholder</code> attributes.</td></tr>
+    <tr><td><code>public/event-days.js</code></td><td>The three event dates. Loaded by both Node (<code>require</code>) and the browser (<code>&lt;script&gt;</code>), so they are defined once.</td></tr>
+    <tr><td><code>public/styles.css</code></td><td>Shared styles.</td></tr>
+    <tr><td><code>public/images/</code></td><td>The SACTH and The Cause Collective logos and eight event photos.</td></tr>
+    <tr><td><code>.env.example</code></td><td>Committed template for the settings file, with the commands to generate each value.</td></tr>
+  </table>
+  <p>Dependencies (<code>package.json</code>): <code>express</code>, <code>better-sqlite3</code>, <code>bcryptjs</code>, <code>cookie-parser</code>, <code>express-rate-limit</code>, <code>qrcode</code>, <code>dotenv</code>. The only browser library is Chart.js 4.4.1, self-hosted at <code>public/vendor/chart.umd.js</code> with its MIT licence.</p>
+</section>
+
+<section class="flow">
+  <h2><span class="num">11</span>Database</h2>
+  <p class="lede">One SQLite file, <code>pou-hono.db</code>, created on first run next to <code>db.js</code>, or wherever <code>DATABASE_PATH</code> points (on a host, the persistent volume). It is gitignored and is the only place data lives.</p>
+
+  <h3><code>registrations</code>: one row per class (plus the walk-in container)</h3>
+  <table>
+    <tr><th style="width:22%">Column</th><th style="width:24%">Type</th><th>Notes</th></tr>
+    <tr><td><code>id</code></td><td>INTEGER PK</td><td>Auto-increment.</td></tr>
+    <tr><td><code>school</code>, <code>contact</code>, <code>email</code></td><td>TEXT NOT NULL</td><td>Teacher's details. <code>school</code> is display text only, not an identity.</td></tr>
+    <tr><td><code>students</code>, <code>adults</code></td><td>INTEGER</td><td>Booked numbers (1–500 and 0–200).</td></tr>
+    <tr><td><code>not_attending</code></td><td>INTEGER, default 0</td><td>How many of the booked students won't come. Head count = <code>students − not_attending</code>.</td></tr>
+    <tr><td><code>session</code></td><td>TEXT</td><td>Always <code>'NZ Tech Week 2027'</code> for public registrations. Per-student session choices live on <code>students</code>.</td></tr>
+    <tr><td><code>date</code></td><td>TEXT <code>YYYY-MM-DD</code></td><td>Event day. Stored in this format so it sorts and compares as plain text. Public registrations must use one of the days in <code>event-days.js</code>, but admin edits may use any real date.</td></tr>
+    <tr><td><code>notes</code>, <code>file_name</code></td><td>TEXT</td><td><code>file_name</code> is only a string. No file is stored.</td></tr>
+    <tr><td><code>status</code></td><td>TEXT, CHECK</td><td><code>'Pending'</code> or <code>'Arrived'</code>.</td></tr>
+    <tr><td><code>token</code></td><td>TEXT UNIQUE</td><td>The <strong>student sign-up</strong> code (<code>crypto.randomUUID()</code>), used in <code>/join/…</code> links. It can only add a student. The walk-in container's token is public and is returned by <code>/api/walk-in-registration</code>.</td></tr>
+    <tr><td><code>teacher_token</code></td><td>TEXT, unique index</td><td>The <strong>teacher portal</strong> credential, used in <code>/register/…</code> links and the teacher API. Returned only in <code>portalLink</code> at registration and by the admin reset route. NULL for the walk-in container. Backfilled with a fresh value for older rows on upgrade.</td></tr>
+    <tr><td><code>is_walk_in</code></td><td>INTEGER 0/1</td><td>1 only for the shared "Individual / Walk-in" container. A partial unique index guarantees at most one; startup code creates one if absent.</td></tr>
+  </table>
+
+  <h3><code>students</code>: one row per signed-up student</h3>
+  <table>
+    <tr><th style="width:22%">Column</th><th style="width:24%">Type</th><th>Notes</th></tr>
+    <tr><td><code>id</code></td><td>INTEGER PK</td><td></td></tr>
+    <tr><td><code>registration_id</code></td><td>INTEGER FK</td><td><code>ON DELETE CASCADE</code>: deleting a class deletes its students.</td></tr>
+    <tr><td><code>name</code></td><td>TEXT NOT NULL</td><td></td></tr>
+    <tr><td><code>age</code></td><td>INTEGER, nullable</td><td>1–120 if given (individuals include adults).</td></tr>
+    <tr><td><code>year_group</code></td><td>TEXT</td><td><code>Year 1</code> … <code>Year 13</code>, or <code>18+</code>.</td></tr>
+    <tr><td><code>allergies</code></td><td>TEXT</td><td>Free text. Treat as sensitive health information.</td></tr>
+    <tr><td><code>preferred_session</code></td><td>TEXT</td><td>Robotics, Gaming, Programming, Computer Building, or Social Media.</td></tr>
+    <tr><td><code>created_at</code></td><td>TEXT</td><td>Set by SQLite.</td></tr>
+  </table>
+
+  <h3><code>admin_sessions</code>: one row per admin sign-in</h3>
+  <p><code>id</code> (random 32-byte hex, also the signed cookie value), <code>created_at</code>, <code>expires_at</code> (8 hours on), and <code>password_fingerprint</code> (a hash of the configured password hash, so changing the password ends every session). Rows are deleted on logout; expired rows are removed on session checks or a later login.</p>
+
+  <h3>Upgrades, the walk-in container and seed data</h3>
+  <ul>
+    <li><strong>In-place upgrades:</strong> <code>db.js</code> runs on every start. The <code>not_attending</code>, <code>is_walk_in</code> and <code>teacher_token</code> columns are in the <code>CREATE TABLE</code> <em>and</em> added through <code>addColumnIfMissing(...)</code>; the <code>admin_sessions</code> table is created if missing. Main does not yet migrate databases missing token; that fix is on schoolsearch. Review that migration before starting against a very old database.</li>
+    <li><strong>Walk-in container:</strong> created on startup if missing. Older databases that predate the <code>is_walk_in</code> flag have their existing "Individual / Walk-in" row marked automatically. The container cannot be edited (apart from status) or deleted through the API.</li>
+    <li><strong>Seed data:</strong> on a <em>completely empty</em> database, five example classes and eighteen example students are inserted. Real data is never touched. To start clean for production, see section 13.</li>
+  </ul>
+</section>
+
+<section class="flow">
+  <h2><span class="num">12</span>Access control and API reference</h2>
+  <p class="lede">Every route sits behind exactly one of three gates. When adding a route, decide its gate first.</p>
+
+  <ul>
+    <li><span class="tag pub">Public</span> No credentials.</li>
+    <li><span class="tag tch">Teacher</span> <code>requireTeacherToken</code> reads the <strong>teacher token</strong> from <code>Authorization: Bearer &lt;token&gt;</code> or <code>?token=</code>, looks it up by <code>teacher_token</code> only, loads that registration into <code>req.registration</code>, and scopes queries to it. A missing, unknown, student or walk-in token all return the <strong>identical 404</strong>.</li>
+    <li><span class="tag adm">Admin</span> <code>requireAdmin</code> checks the signed, httpOnly cookie <code>pou_hono_admin</code> (SameSite=Lax, <code>Secure</code> when <code>NODE_ENV=production</code>). Its value is a session id that must exist in <code>admin_sessions</code>, be unexpired (8 hours), and match the current password fingerprint. It is set after a bcrypt compare in <code>POST /api/admin/login</code>.</li>
+  </ul>
+
+  <table>
+    <tr><th style="width:9%">Method</th><th style="width:40%">Route</th><th style="width:12%">Gate</th><th>Purpose</th></tr>
+    <tr><td>POST</td><td><code>/api/admin/login</code></td><td><span class="tag pub">public</span></td><td>Admin login. Rate limited to 10 attempts per 15 min per IP.</td></tr>
+    <tr><td>POST</td><td><code>/api/admin/logout</code></td><td><span class="tag pub">public</span></td><td>Deletes the server session and clears the cookie.</td></tr>
+    <tr><td>GET</td><td><code>/api/admin/session</code></td><td><span class="tag pub">public</span></td><td>Reports <code>{ authenticated }</code>.</td></tr>
+    <tr><td>GET</td><td><code>/api/admin/students</code></td><td><span class="tag adm">admin</span></td><td>Every student in one query.</td></tr>
+    <tr><td>GET</td><td><code>/api/registrations</code></td><td><span class="tag adm">admin</span></td><td>All registrations (no token column).</td></tr>
+    <tr><td>PUT</td><td><code>/api/registrations/:id</code></td><td><span class="tag adm">admin</span></td><td>Full edit, or <code>{ status }</code> only for check-in.</td></tr>
+    <tr><td>POST</td><td><code>/api/registrations/:id/teacher-link</code></td><td><span class="tag adm">admin</span></td><td>Issue a new teacher token (old portal link stops working); returns <code>{ portalLink }</code>. 409 for the walk-in container.</td></tr>
+    <tr><td>DELETE</td><td><code>/api/registrations/:id</code></td><td><span class="tag adm">admin</span></td><td>Delete a class and, through the cascade, its students.</td></tr>
+    <tr><td>GET</td><td><code>/api/registrations/:id/students</code></td><td><span class="tag adm">admin</span></td><td>One class's students.</td></tr>
+    <tr><td>POST</td><td><code>/api/registrations</code></td><td><span class="tag pub">public</span></td><td>Teacher registers a class. Returns the record plus <code>link</code> (student), <code>portalLink</code> (teacher) and <code>qrCode</code>. 20 per hour per IP.</td></tr>
+    <tr><td>GET</td><td><code>/api/registrations/count</code></td><td><span class="tag pub">public</span></td><td>Home page counter (excludes walk-in).</td></tr>
+    <tr><td>GET</td><td><code>/api/registrations/token/:token</code></td><td><span class="tag pub">public</span></td><td>School name and <code>isWalkIn</code> only, for the student page heading.</td></tr>
+    <tr><td>GET</td><td><code>/api/walk-in-registration</code></td><td><span class="tag pub">public</span></td><td>The walk-in container's token, which is public by design.</td></tr>
+    <tr><td>POST</td><td><code>/api/registrations/token/:token/students</code></td><td><span class="tag pub">public</span> + token</td><td>Student sign-up with the student token. 600/hour per IP ceiling, then 100/hour per IP + class (60 for the walk-in token).</td></tr>
+    <tr><td>GET</td><td><code>/api/my-registration</code></td><td><span class="tag tch">teacher</span></td><td>The teacher's own record.</td></tr>
+    <tr><td>GET</td><td><code>/api/my-registration/qr</code></td><td><span class="tag tch">teacher</span></td><td>Student link (built from the student token) and QR code.</td></tr>
+    <tr><td>GET</td><td><code>/api/my-registration/students</code></td><td><span class="tag tch">teacher</span></td><td>Their students.</td></tr>
+    <tr><td>POST</td><td><code>/api/my-registration/students</code></td><td><span class="tag tch">teacher</span></td><td>Add a student by hand. 200 per hour per class.</td></tr>
+    <tr><td>DELETE</td><td><code>/api/my-registration/students/:studentId</code></td><td><span class="tag tch">teacher</span></td><td>Remove one of their own students only (scoped by <code>registration_id</code>).</td></tr>
+  </table>
+  <p style="font-size:9pt;color:var(--muted)">Routes for the admin's per-student edit and remove were added after commit <code>e0700be</code> and should be added to this table <span class="ph">[route list to be added]</span>.</p>
+
+  <h4>Page routes</h4>
+  <p><code>/join/:token</code> (student token) serves <code>student.html</code>. <code>/register/:token</code> (teacher token) serves <code>teacher.html</code>. An unknown token on either, including a student token on <code>/register/</code>, redirects to <code>/</code>. The public walk-in token on <code>/register/</code> redirects home too; a teacher credential wrongly assigned to that container gets a plain 404. Every other page is served statically from <code>public/</code>.</p>
+  <h4>Cross-cutting behaviour</h4>
+  <p>Every response carries <code>Referrer-Policy: no-referrer</code>, <code>X-Content-Type-Options: nosniff</code>, <code>X-Frame-Options: DENY</code> and a Content-Security-Policy. <code>/api</code> responses are <code>Cache-Control: no-store</code>. Unknown <code>/api</code> paths return a JSON 404. A final error handler returns a generic JSON message (413 for oversized bodies) and never a stack trace. Share and portal links use <code>PUBLIC_BASE_URL</code> when it is set.</p>
+
+  <h4>Rules that must not be broken</h4>
+  <ul>
+    <li><strong>Never build SQL by string concatenation.</strong> External values are bound using <code>db.prepare(...)</code> with <code>?</code> or named placeholders. Fixed queries may have no parameters; schema SQL uses db.exec. Only trusted, code-defined column lists and migration identifiers are interpolated.</li>
+    <li><strong>Select explicit columns</strong> from <code>registrations</code> (see <code>REGISTRATION_COLUMNS</code>), never <code>SELECT *</code>, so a new column can't leak.</li>
+    <li>The walk-in container is identified by <code>is_walk_in</code> via <code>isWalkInRegistration()</code>, <strong>never</strong> by its school name, and must never pass <code>requireTeacherToken</code>.</li>
+    <li>In the front end, every user-supplied value inserted with <code>innerHTML</code> goes through the page's <code>escapeHtml</code> helper, or is set with <code>textContent</code>. <code>escapeHtml</code> does not escape quotes, so it must not be used inside HTML attributes.</li>
+    <li>The student token must never grant teacher access, and <code>teacher_token</code> must never be added to <code>REGISTRATION_COLUMNS</code>.</li>
+  </ul>
+</section>
+
+<section>
+  <h2><span class="num">13</span>Setup, configuration and operations</h2>
+
+  <h3>Run it locally</h3>
+<pre><code>npm install                 # Node.js 22 or 24 (20 and 22–26 supported; not 18 or 21)
+cp .env.example .env        # Windows: copy .env.example .env, then fill in the values below
+node server.js              # or: npm start   →  http://localhost:3000</code></pre>
+
+  <h3>Settings (<code>.env</code> or the host's environment variables)</h3>
+  <table>
+    <tr><th style="width:28%">Variable</th><th>Value</th></tr>
+    <tr><td><code>ADMIN_PASSWORD_HASH</code></td><td>bcrypt hash of the admin password. Generate it with:<br><code>node -e "console.log(require('bcryptjs').hashSync(process.argv[1], 10))" 'NewPassword'</code></td></tr>
+    <tr><td><code>SESSION_SECRET</code></td><td>Long random string that signs the admin cookie. Generate it with:<br><code>node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"</code></td></tr>
+    <tr><td><code>PORT</code></td><td>Optional. Defaults to 3000. Most hosts set this automatically.</td></tr>
+    <tr><td><code>NODE_ENV</code></td><td>Set to <code>production</code> on the live server, which makes the admin cookie HTTPS-only.</td></tr>
+    <tr><td><code>DATABASE_PATH</code></td><td>Optional. Where the database file lives. Default: next to <code>db.js</code>. On a host, use the persistent volume, e.g. <code>/data/pou-hono.db</code>; its folder must exist.</td></tr>
+    <tr><td><code>TRUST_PROXY</code></td><td>Optional. Set when running behind a host's proxy so rate limits see real visitor addresses: a hop count such as <code>1</code>, or an Express trust-proxy value. Match the proxy layout; trusted proxies must overwrite forwarding headers.</td></tr>
+    <tr><td><code>PUBLIC_BASE_URL</code></td><td>Optional. The canonical address used to build share links, portal links and QR codes, e.g. <code>https://register.sacth.nz</code>. Unset uses the request's own address.</td></tr>
+  </table>
+  <p>If either secret is missing, the server starts with a warning and admin login refuses every attempt.</p>
+
+  <h3>Routine tasks</h3>
+  <ul>
+    <li><strong>Change the admin password:</strong> generate a new hash, replace <code>ADMIN_PASSWORD_HASH</code>, restart. Every existing admin session ends automatically.</li>
+    <li><strong>Rotate the cookie secret:</strong> replace <code>SESSION_SECRET</code> and restart. This also signs everyone out.</li>
+    <li><strong>A teacher has lost or leaked their portal link:</strong> in the dashboard, use <em>Reset teacher link</em> on their class and send them the new link.</li>
+    <li><strong>Clear demo data for launch:</strong> note that deleting <code>pou-hono.db</code> does <em>not</em> give an empty site. On restart, <code>db.js</code> sees an empty database and inserts the demo data again. Either (a) <strong>recommended:</strong> disable the two seed blocks in <code>db.js</code> before the production server's first start, or (b) on the live site, delete the five example classes in the admin dashboard (which removes their students) and remove the two example individual sign-ups. The class seed runs only when the registrations table has zero rows; the retained walk-in container prevents reseeding even before real classes exist. The student seed also requires classes to have been seeded on that same startup and an empty students table.</li>
+    <li><strong>Reset everything (development only):</strong> stop the server and delete the configured database file (default: <code>pou-hono.db</code>) together with its <code>-wal</code> and <code>-shm</code> files. The next start rebuilds the schema and the demo data.</li>
+    <li><strong>Back up:</strong> the whole system's data is the one database file. Because it runs in WAL mode, don't just copy <code>pou-hono.db</code> while the server is running. Either stop the server first, or take a consistent copy with <code>sqlite3 pou-hono.db ".backup backup-YYYY-MM-DD.db"</code>. Use the configured database path. Schedule daily during registration; keep copies off the server.</li>
+  </ul>
+
+  <h3>Production checklist</h3>
+  <table class="check">
+    <tr><td>☐</td><td>All 14 fix branches merged (section 15).</td></tr>
+    <tr><td>☐</td><td>Host with a long-running Node process and a <strong>persistent volume</strong>; <code>DATABASE_PATH</code> points into it (section 5). Run a single instance.</td></tr>
+    <tr><td>☐</td><td><code>NODE_ENV=production</code>, fresh <code>ADMIN_PASSWORD_HASH</code> and <code>SESSION_SECRET</code>, <code>TRUST_PROXY</code> matched to the host's proxy layout and <code>PUBLIC_BASE_URL</code> set to the live HTTPS origin.</td></tr>
+    <tr><td>☐</td><td>HTTPS and the custom domain working. A QR code generated on the live site opens the live domain over <code>https://</code>.</td></tr>
+    <tr><td>☐</td><td>Rate limits see real visitor addresses: from two different networks, each gets its own allowance.</td></tr>
+    <tr><td>☐</td><td>Demo data cleared and automated backups running.</td></tr>
+  </table>
+</section>
+
+<section class="flow">
+  <h2><span class="num">14</span>Making common changes</h2>
+  <table>
+    <tr><th style="width:30%">To change…</th><th>Edit</th></tr>
+    <tr><td>The event dates</td><td><code>public/event-days.js</code> <strong>only</strong>. The form, teacher portal, validation and new seed inserts read it. The admin table formats the stored date independently. Existing registration dates, including previously seeded rows, do not change automatically; correct them separately if needed. Keep the <code>YYYY-MM-DD</code> format.</td></tr>
+    <tr><td>Session names</td><td>Several places must match: the <code>validSessions</code> list in <code>validateStudent</code> (<code>server.js</code>), the session choices in <code>student.html</code>, <code>teacher.html</code> and <code>register.html</code>, the session cards on <code>index.html</code>, and the matching strings in <code>translations.js</code>.</td></tr>
+    <tr><td>Event name (<code>NZ Tech Week 2027</code>)</td><td>The value the register form posts, the check in <code>validateRegistration</code>, and page text and translations.</td></tr>
+    <tr><td>FAQ</td><td><code>public/faq.html</code> (English only).</td></tr>
+    <tr><td>Translated text</td><td><code>public/translations.js</code>. Add or change every key in <strong>all four</strong> languages, because a missing key leaves the existing text unchanged, possibly in the previously selected language. Only an unrecognised language falls back to the English dictionary. Keep the "AI-generated, not reviewed" warning until a review is done.</td></tr>
+    <tr><td>Photos</td><td>Add files to <code>public/images/</code> and a matching <code>gallery__item</code> button in <code>index.html</code>.</td></tr>
+    <tr><td>Header, footer, contact email</td><td><code>public/nav.js</code>.</td></tr>
+    <tr><td>Rate limits</td><td>The <code>makeLimiter(...)</code> calls near the top of <code>server.js</code>.</td></tr>
+    <tr><td>A new database column</td><td>Add it to <code>CREATE TABLE</code> in <code>db.js</code> <em>and</em> add an <code>addColumnIfMissing(...)</code> call. If it is user-facing, update <code>validateRegistration</code> / <code>cleanRegistration</code>, <code>REGISTRATION_COLUMNS</code> and the form.</td></tr>
+    <tr><td>A new API route</td><td><code>server.js</code>. Copy a neighbouring route and choose its gate deliberately.</td></tr>
+    <tr><td>A new outside resource (script, font, embed)</td><td>Add its origin to the Content-Security-Policy in the security-headers middleware near the top of <code>server.js</code>, or the browser will block it.</td></tr>
+    <tr><td>A new page</td><td>A new file in <code>public/</code>, copying an existing page's structure (nav placeholder, <code>styles.css</code>, <code>nav.js</code>, plus <code>translations.js</code> if it needs the language switcher).</td></tr>
+  </table>
+</section>
+
+<section>
+  <h2><span class="num">15</span>Repository status</h2>
+  <table>
+    <tr><th style="width:28%">Item</th><th>Status</th></tr>
+    <tr><td><code>main</code></td><td>The current version, at commit <code>e0700be</code> (5 October 2026). It includes all registration work (<code>registration-backbone</code> is fully merged and can be deleted), admin edit and delete, and the photo gallery.</td></tr>
+    <tr><td><code>origin/schoolsearch</code></td><td><strong>Not merged.</strong> Adds South Auckland school-name search to the teacher form (<code>public/schools.js</code>), plus a fix that adds the <code>token</code> column when upgrading a very old database. Review, test and merge before launch.</td></tr>
+    <tr><td>Documentation</td><td><code>README.md</code>, <code>CLAUDE.md</code> (rules for developers and AI assistants) and <code>.env.example</code>; keep them current. No tests, linter or build step, by design. There is no project licence file (<code>package.json</code> says ISC); agree ownership and licensing in writing.</td></tr>
+  </table>
+
+  <h3>Fix branches awaiting review</h3>
+  <p>From the 5 October 2026 review, pushed to GitHub for the team to review and merge. Merged in this order they apply cleanly; the combined site passed a 30-step browser test of every user journey, and a final review passed 127 server checks.</p>
+  <table class="compact">
+    <tr><th style="width:4%">#</th><th style="width:38%">Branch</th><th>What it fixes</th></tr>
+    <tr><td>1</td><td><code>fix/separate-teacher-portal-token</code></td><td>The student link no longer opens the teacher portal: separate student and teacher codes.</td></tr>
+    <tr><td>2</td><td><code>fix/teacher-link-rotation</code></td><td>Admin can reset a teacher's portal link. <em>Built on 1.</em></td></tr>
+    <tr><td>3</td><td><code>fix/rate-limits-and-proxy</code></td><td>Limits that work for whole schools on one internet address; <code>TRUST_PROXY</code>, <code>PUBLIC_BASE_URL</code>. <em>Built on 2.</em></td></tr>
+    <tr><td>4</td><td><code>fix/configurable-database-path</code></td><td><code>DATABASE_PATH</code>, so the database can live on a host's permanent volume. <em>Built on 3.</em></td></tr>
+    <tr><td>5</td><td><code>fix/admin-sessions</code></td><td>Admin sign-ins expire on the server, end on logout and after a password change; logout clears the page.</td></tr>
+    <tr><td>6</td><td><code>fix/input-validation-and-errors</code></td><td>Length and type limits on registration and student fields; errors return generic messages, never internal details.</td></tr>
+    <tr><td>7</td><td><code>fix/security-headers</code></td><td>Browser security headers, including a content security policy.</td></tr>
+    <tr><td>8</td><td><code>fix/self-host-chartjs</code></td><td>The admin chart library is served from the site, not a third party.</td></tr>
+    <tr><td>9</td><td><code>fix/adult-individual-age</code></td><td>Age limit 25 → 120 so adults can register as individuals.</td></tr>
+    <tr><td>10</td><td><code>fix/remove-default-admin-password</code></td><td>The settings template no longer suggests a published password.</td></tr>
+    <tr><td>11</td><td><code>fix/dependency-audit</code></td><td>ip-address 10.7.3 and qs 6.16.0; <code>npm audit</code> clean on 5 Oct 2026. Recheck before launch.</td></tr>
+    <tr><td>12</td><td><code>fix/node-version-and-package-metadata</code></td><td>Node 22 or 24 in the README; engine ranges match the database library; <code>main</code> fixed.</td></tr>
+    <tr><td>13</td><td><code>fix/home-counter-label</code></td><td>Home page counter says "classes", which is what it counts.</td></tr>
+    <tr><td>14</td><td><code>fix/remove-ds-store</code></td><td>Removes a stray macOS file.</td></tr>
+  </table>
+</section>
+
+<!-- ======================= APPENDICES ======================= -->
+<section>
+  <h2><span class="num">A</span>Screenshots</h2>
+  <p class="lede">Taken from the current version running with its demo data.</p>
+  <div class="shot"><img src="shots/home.png"><div class="cap">Home page.</div></div>
+  <div class="shot"><img src="shots/gallery.png"><div class="cap">Photo gallery from past events. Each photo opens full-size.</div></div>
+</section>
+<section>
+  <div class="shot"><img src="shots/register.png"><div class="cap">Register: choose teacher or individual.</div></div>
+  <div class="shot"><img src="shots/register-teacher.png"><div class="cap">Teacher registration, step 1.</div></div>
+</section>
+<section>
+  <div class="cols">
+    <div class="shot" style="flex:1.7"><img src="shots/student.png"><div class="cap">Student sign-up through a teacher's link.</div></div>
+    <div class="shot" style="flex:1"><img src="shots/student-mobile.png"><div class="cap">The same page on a phone.</div></div>
+  </div>
+  <div class="shot"><img src="shots/teacher-portal.png"><div class="cap">Teacher class portal: class details and student link with QR code.</div></div>
+</section>
+<section>
+  <div class="shot"><img src="shots/admin.png"><div class="cap">Admin dashboard.</div></div>
+  <div class="cols">
+    <div class="shot"><img src="shots/admin-actions.png"><div class="cap">Registrations table: status (click to check in), Edit, Reset teacher link and Delete.</div></div>
+    <div class="shot"><img src="shots/admin-edit.png"><div class="cap">Editing a class in place.</div></div>
+  </div>
+</section>
+
+<section>
+  <h2><span class="num">B</span>Event-day check-in guide for staff</h2>
+  <p class="lede">One page for whoever is on the door. Print it out for the day.</p>
+
+  <h3>Before the day</h3>
+  <ol>
+    <li>Make sure you can sign in: go to <span class="ph">[live website address]</span><code>/admin.html</code> and enter the admin password.</li>
+    <li>Check the <strong>Notes</strong> column for anything you need to prepare, such as wheelchair access or language support.</li>
+    <li>Ask teachers to bring their own class list. Their portal shows each student's allergies and health notes.</li>
+  </ol>
+
+  <h3>When a class arrives</h3>
+  <ol>
+    <li>Type the school name into <strong>Search by school name</strong>.</li>
+    <li>If the school has more than one booking, check the <strong>Event day</strong> column to find today's.</li>
+    <li>Click the yellow <strong>Pending</strong> label. It turns green and reads <strong>Arrived</strong>. Click it again to undo a mistake.</li>
+  </ol>
+
+  <h3>Useful views</h3>
+  <ul>
+    <li><strong>Who hasn't arrived yet?</strong> Set the status filter to <em>Pending</em>.</li>
+    <li><strong>A walk-in class that never registered?</strong> Register them on the spot through the normal Register page, then mark them Arrived.</li>
+    <li><strong>Numbers changed at the door?</strong> Click <strong>Edit</strong> on the class, correct the student or adult numbers, and save.</li>
+    <li><strong>Clear filters</strong> resets the view.</li>
+  </ul>
+
+  <div class="box warn"><strong class="t">Remember</strong>
+    <ul>
+      <li>Sign-in lasts up to 8 hours. If the dashboard asks for the password again, sign in again; nothing is lost.</li>
+      <li><strong>Delete</strong> removes a class <em>and all its students</em> permanently. You don't need it on the day.</li>
+      <li>Log out on shared computers when you're done.</li>
+    </ul>
+  </div>
+</section>
+
+</body>
+</html>
