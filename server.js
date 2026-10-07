@@ -733,8 +733,10 @@ function validateStudent(body) {
   const ageProvided = body.age !== undefined && body.age !== null && body.age !== '';
   if (ageProvided) {
     const age = strictInteger(body.age);
-    if (age === null || age < 1 || age > 25) {
-      errors.push('Age must be a whole number between 1 and 25.');
+    // 120, not a school-age cap: individuals in the 18+ group include
+    // parents and other adults from the community.
+    if (age === null || age < 1 || age > 120) {
+      errors.push('Age must be a whole number between 1 and 120.');
     }
   }
 
