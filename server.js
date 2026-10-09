@@ -48,6 +48,7 @@ const bcrypt = require('bcryptjs');           // password hashing (pure JS, no b
 const cookieParser = require('cookie-parser'); // reads/writes the admin session cookie
 const rateLimit = require('express-rate-limit'); // caps how often one IP can hit a route
 const db = require('./db'); // our database module (creates the table on first run)
+const { sendRegistrationConfirmation } = require('./mailer'); // confirmation email (no-op unless SMTP is configured)
 const EVENT_DAYS = require('./public/event-days.js');
 
 const app = express();
@@ -608,6 +609,19 @@ app.post('/api/registrations', createRegistrationLimiter, async (req, res) => {
   }
 
   // 201 = "Created".
+  // Email the teacher their links. Deliberately NOT awaited: a slow or failing
+  // mail server must never delay or break a registration that already saved.
+  sendRegistrationConfirmation({
+    to: created.email,
+    contact: created.contact,
+    school: created.school,
+    session: created.session,
+    date: created.date,
+    link,
+    portalLink,
+    qrCode,
+  }).catch((err) => console.error('Confirmation email failed:', err.message));
+
   res.status(201).json({ ...created, link, portalLink, qrCode });
 });
 
