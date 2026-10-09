@@ -103,7 +103,6 @@ const SOUTH_AUCKLAND_SCHOOLS = [
   'Rosehill College',
   'James Cook High School',
   'Southern Cross Campus',
-  'Te Kauwhata College',
   'Mountain View School',
   "St Mary's Catholic School (Papakura)"
 ];
