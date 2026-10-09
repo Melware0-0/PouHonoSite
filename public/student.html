@@ -173,13 +173,13 @@
 
         <div class="field">
           <label for="s-name" data-i18n="label_your_name">Your name</label>
-          <input type="text" id="s-name" name="name" required>
+          <input type="text" id="s-name" name="name" required maxlength="100">
         </div>
 
         <div class="field-row">
           <div class="field">
             <label for="s-age" data-i18n="label_age">Age</label>
-            <input type="number" id="s-age" name="age" min="1" max="25" required>
+            <input type="number" id="s-age" name="age" min="1" max="120" required>
           </div>
           <div class="field">
             <label for="s-year" data-i18n="label_year_group">Year group</label>
@@ -191,7 +191,7 @@
 
         <div class="field">
           <label for="s-allergies"><span data-i18n="label_allergies">Allergies / health conditions</span> <span style="color:var(--text-muted); font-weight:400;" data-i18n="label_optional">(optional)</span></label>
-          <textarea id="s-allergies" name="allergies" rows="2"></textarea>
+          <textarea id="s-allergies" name="allergies" rows="2" maxlength="500"></textarea>
         </div>
 
         <div class="field">
