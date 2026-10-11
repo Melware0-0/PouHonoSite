@@ -34,7 +34,7 @@ file and reload the page.
 
 The server needs a `.env` before the admin dashboard works — see below.
 
-The SQLite file `pou-hono.db` is created next to `db.js` on first run and seeded
+The SQLite file `pou-hono.db` is created next to `db.js` (or at `DATABASE_PATH`) on first run and seeded
 with example classes and students. Delete it to reset all data; the schema and
 seed logic in `db.js` rebuild it.
 
@@ -49,6 +49,25 @@ each value with the exact command that generates it.
 - `SESSION_SECRET` — long random string signing the admin cookie. Generate with
   `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
 - `PORT` — optional, defaults to 3000.
+- `TRUST_PROXY` — optional proxy hop count (e.g. `1`) or Express proxy
+  IP/subnet setting. Unset retains direct-connection IPs. Match the hosting
+  proxy topology and only trust proxies that overwrite forwarding headers;
+  rate limits then use the real client IP.
+- `PUBLIC_BASE_URL` — optional canonical origin for share/portal links and QR
+  codes, e.g. `https://register.example.nz`. Trailing slashes are removed;
+  unset falls back to the request protocol and host via `publicBaseUrl(req)`.
+- `NODE_ENV=production` — use when hosting over HTTPS; enables HTTPS-only
+  admin cookies.
+
+- `DATABASE_PATH` — optional; where the SQLite file lives (default: next to `db.js`). Point it into a host's persistent volume in production.
+
+Public student limits are 100/hour per class token and IP, 60/hour for the
+walk-in token and IP, with a 600/hour IP ceiling including invalid tokens.
+Class budgets run only after token validation. Teacher manual adds have a
+separate 200/hour budget per authenticated teacher token. Registration creation
+remains 20/hour per IP and admin login 10/15 minutes per IP. Limits are in-memory
+and reset on restart.
+
 - `EMAIL_ENABLED` — `true` sends confirmation emails via `email.js`; anything
   else just logs them. `email.js`'s `sendEmail()` is a stub that throws until a
   provider is wired in. Sending is never awaited by a route: a registration
@@ -58,6 +77,11 @@ If either secret is missing the server still starts and every public page works;
 it prints a warning and admin login refuses every attempt. It **fails closed** —
 never treat an unconfigured server as an open one.
 
+The signed `pou_hono_admin` cookie holds a random session ID backed by the
+`admin_sessions` SQLite table. Sessions expire after eight hours, logout deletes
+the server session, and changing `ADMIN_PASSWORD_HASH` invalidates all existing
+sessions. The cookie is httpOnly, SameSite=Lax, and Secure in production.
+
 ## The three access levels
 
 Every API route sits behind exactly one of these. When adding a route, the first
@@ -65,7 +89,7 @@ question is which one it needs.
 
 - **Public** — anyone. Can create a registration, and can sign a student up if
   they hold a valid link token. Cannot read anybody's data.
-- **Teacher** — holds the secret token from their own link. `requireTeacherToken`
+- **Teacher** — holds the secret token from their own portal link. `requireTeacherToken`
   reads it from an `Authorization: Bearer` header or `?token=`, looks up the
   registration and attaches it as `req.registration`. There is no teacher
   account or password: the unguessable token *is* the credential.
@@ -104,6 +128,8 @@ Two rules that are easy to break by accident:
   - `nav.js` injects the shared nav and footer into every page
   - `translations.js` swaps four languages via `data-i18n` attributes
   - `event-days.js` holds the three event dates
+  - `vendor/chart.umd.js` is Chart.js 4.4.1 for the admin chart, self-hosted
+    (MIT, licence alongside) so no third-party script runs on the admin page
   - `styles.css`
 - **`pou-hono.db`** — the data, one file, gitignored. No cloud, by design.
 
@@ -111,7 +137,11 @@ Two rules that are easy to break by accident:
 
 Page routes: `/join/:token` serves the **student** sign-up page (this is the
 link and QR a teacher shares); `/register/:token` serves the **teacher** portal.
-Both take the same token; an unknown token on either redirects to `/`.
+`/join` uses `registrations.token`; `/register` and teacher APIs use the separate
+secret `teacher_token`. Unknown tokens on either page redirect to `/`.
+Creation returns `link`, `qrCode`, and `portalLink`, never raw token fields.
+Startup backfills missing teacher tokens for classes; the walk-in stays NULL.
+Existing teacher portal links from before this split must be replaced.
 
 | Route | Gate |
 |---|---|
@@ -119,6 +149,7 @@ Both take the same token; an unknown token on either redirects to `/`.
 | `GET /api/admin/students` | admin — every student in one query |
 | `GET /api/admin/export/pdf` | admin — all students + teacher registrations as a PDF (pdfkit) |
 | `GET /api/registrations` · `PUT`/`DELETE /api/registrations/:id` · `GET /api/registrations/:id/students` | admin |
+| `POST /api/registrations/:id/teacher-link` | admin — rotates teacher token and returns the new portal link |
 | `POST /api/registrations` | public, rate limited |
 | `GET /api/registrations/count` · `/api/registrations/token/:token` · `/api/walk-in-registration` | public |
 | `POST /api/registrations/token/:token/students` | public + valid token, rate limited |
@@ -165,3 +196,14 @@ connecting a real email provider, school-name search behind the "Search your
 school…" box, real logo and event imagery, and load testing to the brief's
 1,000-user target. `file_name` on a registration is just a filename string — no
 file is stored. Don't add these unless asked.
+
+## Security headers
+
+`server.js` sets security headers before all other middleware: `Referrer-Policy:
+no-referrer` protects secret teacher URLs, `nosniff` prevents MIME sniffing, and
+`X-Frame-Options: DENY` / CSP `frame-ancestors 'none'` prevent framing this site.
+The CSP permits same-origin resources and fetches, data-image QR codes, Chart.js
+from cdnjs, and the Google Maps iframe. Scripts and styles currently require
+`'unsafe-inline'`; moving them into external files is separate work. There are
+no Google Fonts loads. Adding a new external resource requires updating the CSP
+and checking the affected pages in a browser. HSTS belongs to hosting/TLS.

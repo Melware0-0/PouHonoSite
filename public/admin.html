@@ -411,7 +411,9 @@
   <div id="site-footer"></div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<!-- Chart.js 4.4.1, served from this site rather than a CDN so no third-party
+     script runs on the page that holds every child's data. -->
+<script src="/vendor/chart.umd.js"></script>
 <script src="/event-days.js"></script>
 <script src="/translations.js"></script>
 <script src="/nav.js"></script>
@@ -563,15 +565,15 @@
     }
   });
 
-  // Logging out clears the cookie on the server side, so the "back" button
-  // cannot bring the dashboard back with its data intact.
+  // Reload only after the server confirms the session was revoked.
   document.getElementById('logoutBtn').addEventListener('click', async () => {
     try {
-      await fetch('/api/admin/logout', { method: 'POST', credentials: 'same-origin' });
+      const res = await fetch('/api/admin/logout', { method: 'POST', credentials: 'same-origin' });
+      if (!res.ok) throw new Error('logout failed');
+      location.replace('/admin.html');
     } catch (err) {
-      // Even if the request failed, drop back to the gate.
+      alert('Logout failed. Your session may still be active. Please try again.');
     }
-    showGate('You have been logged out.');
   });
 
   // --- Dashboard data ---
@@ -854,6 +856,7 @@
         <td class="actions-cell">
           <div class="row-actions">
             <button type="button" class="btn-link edit-btn" data-id="${r.id}">Edit</button>
+            <button type="button" class="btn-link reset-teacher-link-btn" data-id="${r.id}">Reset teacher link</button>
             <button type="button" class="btn-link btn-link--danger delete-btn" data-id="${r.id}">Delete</button>
           </div>
         </td>
@@ -874,16 +877,16 @@
   function editRowHtml(r) {
     return `
       <tr class="edit-row" data-id="${r.id}">
-        <td><input type="text" class="edit-input" data-field="school" maxlength="200"></td>
-        <td><input type="text" class="edit-input" data-field="contact" maxlength="200"></td>
-        <td><input type="email" class="edit-input" data-field="email" maxlength="200"></td>
+        <td><input type="text" class="edit-input" data-field="school" maxlength="150"></td>
+        <td><input type="text" class="edit-input" data-field="contact" maxlength="100"></td>
+        <td><input type="email" class="edit-input" data-field="email" maxlength="254"></td>
         <td><input type="number" class="edit-input edit-input--num" data-field="students" min="1" max="500"></td>
         <td class="wrap-cell" title="Set by the teacher when they register">${escapeHtml(r.year_groups || '—')}</td>
         <td><input type="number" class="edit-input edit-input--num" data-field="adults" min="0" max="200"></td>
         <td><input type="number" class="edit-input edit-input--num" data-field="not_attending" min="0"></td>
         <td><input type="date" class="edit-input" data-field="date"></td>
         <td><span class="status-pill status-pill--${r.status.toLowerCase()}">${r.status}</span></td>
-        <td class="wrap-cell"><textarea class="edit-input" data-field="notes" rows="2" maxlength="2000"></textarea></td>
+        <td class="wrap-cell"><textarea class="edit-input" data-field="notes" rows="2" maxlength="1000"></textarea></td>
         <td class="actions-cell">
           <div class="row-actions">
             <button type="button" class="btn-link save-edit-btn" data-id="${r.id}">Save</button>
@@ -941,6 +944,9 @@
     });
     tbody.querySelectorAll('.save-edit-btn').forEach((btn) => {
       btn.addEventListener('click', () => saveEdit(btn));
+    });
+    tbody.querySelectorAll('.reset-teacher-link-btn').forEach((btn) => {
+      btn.addEventListener('click', () => resetTeacherLink(btn));
     });
     tbody.querySelectorAll('.delete-btn').forEach((btn) => {
       btn.addEventListener('click', () => deleteRegistration(btn));
@@ -1001,6 +1007,29 @@
       // adminFetch has already re-shown the gate on a 401. The row stays
       // as it was so nothing typed is lost.
       row.querySelectorAll('button, input, textarea').forEach((el) => { el.disabled = false; });
+    }
+  }
+
+  async function resetTeacherLink(btn) {
+    if (!window.confirm("The teacher's current portal link will stop working. Continue?")) return;
+
+    btn.disabled = true;
+    try {
+      const res = await adminFetch(`/api/registrations/${Number(btn.dataset.id)}/teacher-link`, {
+        method: 'POST'
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert((data.errors && data.errors.join(' ')) || 'Could not reset the teacher link.');
+        return;
+      }
+      // A native prompt keeps the link copyable without inserting HTML.
+      window.prompt('Copy this new portal link and send it to the teacher:', data.portalLink);
+    } catch (err) {
+      // adminFetch has already re-shown the gate on a 401.
+      alert('Could not reset the teacher link.');
+    } finally {
+      btn.disabled = false;
     }
   }
 

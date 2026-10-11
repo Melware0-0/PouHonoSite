@@ -24,7 +24,8 @@ and reload the page.
 
 ## Running it
 
-You need **Node.js 18 or newer** (`node -v` to check). Then, from this folder:
+Use **Node.js 22 or 24** (`node -v` to check). The locked `better-sqlite3`
+version supports Node 20 and 22 through 26, but not Node 18 or 21. Then, from this folder:
 
 ```bash
 npm install                  # 1. install dependencies
@@ -35,7 +36,7 @@ node server.js               # 4. start the server   (or: npm start)
 
 Open **http://localhost:3000**. `Ctrl + C` stops the server.
 
-On first run the database file `pou-hono.db` is created next to `db.js` and
+On first run the database file `pou-hono.db` is created next to `db.js` (or at `DATABASE_PATH`) and
 seeded with example classes and students so the admin dashboard demos properly.
 Delete that file to reset everything.
 
@@ -50,8 +51,15 @@ short version.
 | `ADMIN_PASSWORD_HASH` | yes, for the admin dashboard | A **bcrypt hash** of the admin password — never the password itself |
 | `SESSION_SECRET` | yes, for the admin dashboard | A long random string used to sign the admin login cookie |
 | `PORT` | no | Port to listen on. Defaults to `3000` |
+| `TRUST_PROXY` | no | Proxy hop count (e.g. `1`) or Express proxy IP/subnet setting; unset uses the direct connection IP |
+| `PUBLIC_BASE_URL` | no | Canonical origin for share/portal links and QR codes (e.g. `https://register.example.nz`); trailing slashes removed; unset uses request protocol/host |
+| `NODE_ENV` | production hosting | Set to `production` for HTTPS-only admin cookies; serve over HTTPS |
+| `DATABASE_PATH` | no | Where the database file lives. Defaults to `pou-hono.db` next to `db.js`; on a host, point it into the persistent volume (e.g. `/data/pou-hono.db`) |
 | `EMAIL_ENABLED` | no | `true` sends confirmation emails; anything else (the default, `false`) just logs them. See [Confirmation emails](#confirmation-emails) |
 | `EMAIL_FROM` | when emails are on | The "From" address, verified with your email provider |
+
+Set `TRUST_PROXY` to match your host's proxy topology so rate limits use the
+client IP. Only trust proxies that overwrite client-supplied forwarding headers.
 
 Generate the two values:
 
@@ -66,6 +74,11 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 If either is missing the server still starts and every public page works — it
 prints a loud warning and admin login refuses every attempt. It **fails
 closed**: an unconfigured server is never an open one.
+
+The signed `pou_hono_admin` cookie holds a random session ID backed by the
+`admin_sessions` SQLite table. Sessions expire after eight hours, logout deletes
+the server session, and changing `ADMIN_PASSWORD_HASH` invalidates all existing
+sessions. The cookie is httpOnly, SameSite=Lax, and Secure in production.
 
 ### Confirmation emails
 
@@ -123,8 +136,8 @@ The dates currently in it are **placeholders** pending confirmation from SACTH.
 | `/admin.html` | Admin dashboard — password protected |
 
 A teacher finishing registration is given **both** links: `/join/…` to hand to
-their students, and `/register/…` to bookmark for themselves. Both carry the
-same token.
+their students, and `/register/…` to bookmark for themselves. They carry different
+tokens: the student link permits sign-up only; keep the teacher portal link secret.
 
 The registration, student sign-up and teacher portal pages are translated into
 **English, te reo Māori, gagana Sāmoa and lea faka-Tonga** via
@@ -142,10 +155,9 @@ Three levels of access, and every API route sits behind one of them:
 
 - **Public** — anyone. Can create a registration, and can sign a student up if
   they hold a valid link token. Cannot read anybody's data.
-- **Teacher** — holds the secret token from their own link. Can see and manage
+- **Teacher** — holds the secret token from their own portal link. Can see and manage
   **only their own class**. No password: the unguessable token *is* the
-  credential, which is what lets a teacher share a link with thirty students
-  without handing out an account.
+  credential, while the separate student link can be shared with the whole class.
 - **Admin** — logged in with the admin password. Can see everything.
 
 ### The API
@@ -158,6 +170,7 @@ Three levels of access, and every API route sits behind one of them:
 | GET | `/api/admin/students` | **admin** — every student, in one query |
 | GET | `/api/registrations` | **admin** |
 | PUT | `/api/registrations/:id` | **admin** — full edit, or just the status toggle |
+| POST | `/api/registrations/:id/teacher-link` | **admin** — replaces the teacher portal link; old link stops working |
 | DELETE | `/api/registrations/:id` | **admin** |
 | GET | `/api/registrations/:id/students` | **admin** |
 | POST | `/api/registrations` | public (rate limited) — a teacher registering a class |
@@ -171,16 +184,24 @@ Three levels of access, and every API route sits behind one of them:
 | POST | `/api/my-registration/students` | **teacher token** (rate limited) |
 | DELETE | `/api/my-registration/students/:studentId` | **teacher token** |
 
+Startup adds and uniquely indexes `teacher_token`, backfilling existing classes
+with fresh UUIDs. Walk-ins retain a NULL teacher token. Existing student links
+keep working; old teacher portal links must be replaced after this upgrade.
+Creation returns `link`, `qrCode`, and `portalLink`, without raw token fields.
+
 A teacher token is sent either as `Authorization: Bearer <token>` or as
 `?token=<token>`.
 
-`GET /api/registrations` never returns the `token` column — the routes select
+`GET /api/registrations` never returns the `token` or `teacher_token` columns — the routes select
 explicit columns rather than `SELECT *`, so a new column can never leak by
 accident.
 
-**Rate limits** (per IP): 20/hour on creating a registration, 60/hour on adding
-students (high enough that a teacher can type in a whole class), 10 per 15
-minutes on admin login.
+**Rate limits:** registration creation is 20/hour per IP; admin login is
+10 per 15 minutes per IP. Public student sign-ups allow 100/hour per class
+token and IP (60/hour for the public walk-in token), plus a 600/hour IP abuse
+ceiling including invalid tokens. Invalid tokens do not consume class budgets.
+Teacher manual adds have a separate 200/hour budget per authenticated teacher
+token. These in-memory limits reset when the server restarts.
 
 ---
 
@@ -237,3 +258,14 @@ Handled separately, or still to do:
 - Native-speaker review of the Māori, Samoan and Tongan translations
 - Load testing to the brief's 1,000-user target
 - Storing uploaded files — `file_name` is a filename string, not a stored file
+
+## Security headers
+
+`server.js` sets security headers before all other middleware: `Referrer-Policy:
+no-referrer` protects secret teacher URLs, `nosniff` prevents MIME sniffing, and
+`X-Frame-Options: DENY` / CSP `frame-ancestors 'none'` prevent framing this site.
+The CSP permits same-origin resources and fetches, data-image QR codes, Chart.js
+from cdnjs, and the Google Maps iframe. Scripts and styles currently require
+`'unsafe-inline'`; moving them into external files is separate work. There are
+no Google Fonts loads. Adding a new external resource requires updating the CSP
+and checking the affected pages in a browser. HSTS belongs to hosting/TLS.

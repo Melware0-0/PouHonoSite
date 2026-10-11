@@ -20,7 +20,7 @@
  *   PUBLIC   anyone on the internet. Can create a registration and can
  *            sign a student up if they hold a valid link token. Cannot
  *            read anybody's data.
- *   TEACHER  holds the secret token from their own shareable link. Can
+ *   TEACHER  holds the secret token from their own portal link. Can
  *            see and manage ONLY their own class — no password needed,
  *            because the unguessable token IS the credential.
  *   ADMIN    logged in with the admin password. Can see everything.
@@ -48,12 +48,37 @@ const QRCode = require('qrcode');
 const PDFDocument = require('pdfkit');            // admin PDF export
 const bcrypt = require('bcryptjs');           // password hashing (pure JS, no build step)
 const cookieParser = require('cookie-parser'); // reads/writes the admin session cookie
-const { rateLimit, ipKeyGenerator } = require('express-rate-limit'); // caps how often one IP can hit a route
+const rateLimit = require('express-rate-limit'); // caps how often one IP can hit a route
 const db = require('./db'); // our database module (creates the table on first run)
 const EVENT_DAYS = require('./public/event-days.js');
 const { sendConfirmationEmail } = require('./email'); // confirmation emails (logs only until a provider is set up)
 
 const app = express();
+
+// Security headers apply to static pages, APIs, redirects and errors alike.
+// Inline scripts/styles are required by the current pages; moving them out is separate work.
+// HSTS is configured by the hosting/TLS layer, not this application.
+app.use((req, res, next) => {
+  res.set({
+    'Referrer-Policy': 'no-referrer', // Teacher portal URLs contain a credential.
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'Content-Security-Policy': [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com",
+      "style-src 'self' 'unsafe-inline'",
+      "font-src 'self'",
+      "img-src 'self' data:",
+      "connect-src 'self'",
+      "frame-src https://www.google.com https://maps.google.com",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "frame-ancestors 'none'"
+    ].join('; ')
+  });
+  next();
+});
 
 // The port can be changed with PORT in .env; 3000 is the normal default.
 const PORT = Number(process.env.PORT) || 3000;
@@ -108,15 +133,23 @@ if (!ADMIN_CONFIGURED) {
 // that setting it (on login) and clearing it (on logout) can never drift
 // apart — a cookie is only cleared if the options match how it was set.
 const ADMIN_COOKIE_NAME = 'pou_hono_admin';
+const ADMIN_SESSION_LIFETIME = 8 * 60 * 60 * 1000;
+const ADMIN_PASSWORD_FINGERPRINT = crypto.createHash('sha256').update(ADMIN_PASSWORD_HASH).digest('hex');
 const ADMIN_COOKIE_OPTIONS = {
   httpOnly: true,  // JavaScript in the page cannot read it — blunts XSS cookie theft
   signed: true,    // signed with SESSION_SECRET, so it cannot be forged
   sameSite: 'lax', // not sent on cross-site POSTs — basic CSRF protection
   secure: process.env.NODE_ENV === 'production', // HTTPS-only in production
-  maxAge: 8 * 60 * 60 * 1000 // 8 hours — one working day, then log in again
+  maxAge: ADMIN_SESSION_LIFETIME // 8 hours — one working day, then log in again
 };
 
 // --- Middleware ("things that run on every request") ---------------
+
+// Sensitive API responses must never be retained by browser or proxy caches.
+app.use('/api', (req, res, next) => {
+  res.set('Cache-Control', 'no-store');
+  next();
+});
 
 // Parse JSON request bodies, so req.body works for POST/PUT.
 app.use(express.json());
@@ -139,6 +172,18 @@ app.use(cookieParser(SESSION_SECRET));
 // Serve the front-end files (index.html etc.) from /public.
 app.use(express.static(path.join(__dirname, 'public')));
 
+// --- Proxy and public link origin ----------------------------------
+// Configure only when supplied; numeric values are proxy hop counts.
+const trustProxy = process.env.TRUST_PROXY;
+if (trustProxy) {
+  app.set('trust proxy', /^\d+$/.test(trustProxy) ? Number(trustProxy)
+    : trustProxy === 'true' ? true : trustProxy === 'false' ? false : trustProxy);
+}
+
+function publicBaseUrl(req) {
+  return (process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
+}
+
 // --- Rate limiting ----------------------------------------------------
 /**
  * A rate limiter counts how many times one IP address has hit a route
@@ -154,11 +199,11 @@ app.use(express.static(path.join(__dirname, 'public')));
  * The limits below are applied per route rather than to the whole site,
  * because the sensible number is different for each one.
  */
-function makeLimiter(windowMs, limit, keyGenerator) {
+function makeLimiter(windowMs, limit, options = {}) {
   return rateLimit({
     windowMs,
     limit,
-    ...(keyGenerator ? { keyGenerator } : {}),
+    ...options,
     standardHeaders: true, // report the limit in the modern RateLimit-* headers
     legacyHeaders: false,  // ...and not the old X-RateLimit-* ones
     // Reply in the same { errors: [...] } shape as the rest of the API, so
@@ -174,25 +219,26 @@ function makeLimiter(windowMs, limit, keyGenerator) {
 // sitting stays well under 20, so this only ever catches a script.
 const createRegistrationLimiter = makeLimiter(60 * 60 * 1000, 20);
 
-// Adding a student: 200 per hour per IP *per class link*.
-//
-// Counted per (IP, token) rather than per IP alone, because of how schools
-// connect: every device on a school's network usually reaches us from ONE
-// public IP. A plain per-IP limit meant that once a school's classes had
-// signed up 60 children in an hour between them, every further child at
-// that school was refused — the exact moment (a class scanning the QR code
-// together) this site exists for. Keyed by link as well, each class gets
-// its own allowance, and 200 covers the largest class plus corrections.
-//
-// A script still cannot flood one class: it gets 200 an hour against any
-// single link, from any single address.
-function readLinkToken(req) {
-  if (req.params && req.params.token) return String(req.params.token);
-  const bearerMatch = String(req.get('authorization') || '').match(/^Bearer\s+(.+)$/i);
-  return bearerMatch ? bearerMatch[1].trim() : String(req.query.token || '').trim();
+// Invalid tokens count only toward the broad abuse ceiling, not a class budget.
+const publicStudentIpLimiter = makeLimiter(60 * 60 * 1000, 600);
+const publicStudentSignUpLimiter = makeLimiter(60 * 60 * 1000,
+  (req) => isWalkInRegistration(req.studentRegistration) ? 60 : 100, {
+    // Normalize IPv6 as the default IP limiter does; pair it with a valid token.
+    keyGenerator: (req) => `${rateLimit.ipKeyGenerator(req.ip)}:${req.params.token}`
+  });
+const teacherStudentAddLimiter = makeLimiter(60 * 60 * 1000, 200, {
+  // The authenticated row identifies the teacher token, across IPs and token transports.
+  keyGenerator: (req) => String(req.registration.id)
+});
+
+function requireStudentRegistration(req, res, next) {
+  req.studentRegistration = db.prepare('SELECT id, is_walk_in, date FROM registrations WHERE token = ?')
+    .get(req.params.token);
+  if (!req.studentRegistration) {
+    return res.status(404).json({ errors: ['Registration link not found.'] });
+  }
+  next();
 }
-const studentSignUpLimiter = makeLimiter(60 * 60 * 1000, 200,
-  (req) => `${ipKeyGenerator(req.ip)}|${readLinkToken(req)}`);
 
 // Admin login: 10 attempts per 15 minutes per IP.
 // The tightest limit, because this is the one route where an attacker
@@ -206,17 +252,26 @@ const adminLoginLimiter = makeLimiter(15 * 60 * 1000, 10);
  * requireAdmin — a "gatekeeper" placed in front of the admin-only routes.
  *
  * Express middleware runs before the route handler. If the visitor has a
- * valid signed admin cookie we call next() and the real handler runs; if
+ * valid server session from a signed cookie we call next() and the handler runs; if
  * not we stop right here with 401 ("Unauthorised") and the handler never
  * sees the request. Putting the check here rather than inside each route
  * means it is impossible to forget it on one of them.
  */
-function requireAdmin(req, res, next) {
-  // req.signedCookies only contains cookies whose signature was valid.
-  // If the server has no SESSION_SECRET this is always empty → fails closed.
-  if (ADMIN_CONFIGURED && req.signedCookies && req.signedCookies[ADMIN_COOKIE_NAME] === 'admin') {
-    return next();
+function hasAdminSession(req) {
+  if (!ADMIN_CONFIGURED) return false;
+  const id = req.signedCookies?.[ADMIN_COOKIE_NAME];
+  if (typeof id !== 'string' || !id) return false;
+  const session = db.prepare('SELECT expires_at, password_fingerprint FROM admin_sessions WHERE id = ?').get(id);
+  if (!session) return false;
+  if (session.expires_at <= Date.now() || session.password_fingerprint !== ADMIN_PASSWORD_FINGERPRINT) {
+    db.prepare('DELETE FROM admin_sessions WHERE id = ?').run(id);
+    return false;
   }
+  return true;
+}
+
+function requireAdmin(req, res, next) {
+  if (hasAdminSession(req)) return next();
   return res.status(401).json({ errors: ['Not authorised.'] });
 }
 
@@ -251,17 +306,27 @@ app.post('/api/admin/login', adminLoginLimiter, (req, res) => {
     return res.status(401).json({ errors: ['Incorrect password.'] });
   }
 
-  res.cookie(ADMIN_COOKIE_NAME, 'admin', ADMIN_COOKIE_OPTIONS);
+  const now = Date.now();
+  db.prepare('DELETE FROM admin_sessions WHERE expires_at <= ?').run(now);
+  const id = crypto.randomBytes(32).toString('hex');
+  db.prepare('INSERT INTO admin_sessions (id, created_at, expires_at, password_fingerprint) VALUES (?, ?, ?, ?)')
+    .run(id, now, now + ADMIN_SESSION_LIFETIME, ADMIN_PASSWORD_FINGERPRINT);
+  res.cookie(ADMIN_COOKIE_NAME, id, ADMIN_COOKIE_OPTIONS);
   res.json({ ok: true });
 });
 
 /**
  * POST /api/admin/logout
- * Clears the admin cookie. Always succeeds — logging out when you were
- * never logged in is harmless.
+ * Deletes the server session and clears the admin cookie. Always succeeds —
+ * logging out when you were never logged in is harmless.
  */
 app.post('/api/admin/logout', (req, res) => {
-  res.clearCookie(ADMIN_COOKIE_NAME, ADMIN_COOKIE_OPTIONS);
+  const id = req.signedCookies?.[ADMIN_COOKIE_NAME];
+  if (typeof id === 'string' && id) {
+    db.prepare('DELETE FROM admin_sessions WHERE id = ?').run(id);
+  }
+  const { maxAge, ...clearOptions } = ADMIN_COOKIE_OPTIONS;
+  res.clearCookie(ADMIN_COOKIE_NAME, clearOptions);
   res.json({ ok: true });
 });
 
@@ -271,26 +336,21 @@ app.post('/api/admin/logout', (req, res) => {
  * this on load so that refreshing the page doesn't force a fresh login.
  */
 app.get('/api/admin/session', (req, res) => {
-  const authenticated = Boolean(
-    ADMIN_CONFIGURED && req.signedCookies && req.signedCookies[ADMIN_COOKIE_NAME] === 'admin'
-  );
+  const authenticated = hasAdminSession(req);
   res.json({ authenticated });
 });
 
 // --- Which registration columns are safe to send back ----------------
 /**
- * Every column of the registrations table EXCEPT `token`.
+ * Safe registration columns, excluding `token` and `teacher_token`.
  *
  * `SELECT *` is convenient but dangerous: the moment someone adds a
  * sensitive column to the table, every route using `*` starts quietly
  * publishing it, and nobody notices. Listing the columns means a new
  * column is private until somebody deliberately adds it here.
  *
- * `token` is left out because it is a credential. Anyone holding a
- * class's token can read that class's students, so it must never appear
- * in an API reply. The one place it legitimately reaches the outside
- * world is inside the shareable link (and the QR code of that link)
- * returned once, to the teacher, at the moment they register.
+ * Tokens are excluded from general responses. Student links allow sign-up;
+ * secret portal links allow class management. Return links only on creation or an admin teacher-link reset.
  *
  * NOTE: this is a fixed string written by us, never anything a visitor
  * sent — that is why it is safe to drop into the SQL below. Real VALUES
@@ -312,8 +372,8 @@ const REGISTRATION_COLUMNS =
  *
  * WHY THE SERVER HAS TO ASK AT ALL: this row's token is deliberately
  * PUBLIC — GET /api/walk-in-registration hands it to anybody, because the
- * student page needs it to attach a walk-in sign-up. Every other token in
- * the table is a secret that acts as a password. So the walk-in token must
+ * student page needs it to attach a walk-in sign-up. Only teacher_token
+ * acts as a password, and the walk-in row has none. The walk-in token must
  * never be allowed through a door that treats "you hold the token" as
  * "you are the teacher": that would let any visitor read and delete every
  * individual child's name, age and allergies. Public token, public
@@ -354,18 +414,19 @@ function isRealDate(value) {
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === text;
 }
 
-// Upper limits on free-text fields. Two of the routes that take these are
-// public, and without a cap one request could store a name the size of a
-// novel — which then gets drawn into every admin table and chart label.
-// Generous enough that no real school or child's name comes near them.
-const MAX_LENGTH = {
-  name: 100,
-  school: 150,
-  email: 254,
-  allergies: 500,
-  notes: 1000,
-  fileName: 255
-};
+function validateTextFields(body, fields) {
+  const errors = [];
+  for (const [field, label, maxLength] of fields) {
+    const value = body[field];
+    if (value === undefined) continue;
+    if (typeof value !== 'string') {
+      errors.push(`${label} must be a string.`);
+    } else if (value.length > maxLength) {
+      errors.push(`${label} must be ${maxLength} characters or fewer.`);
+    }
+  }
+  return errors;
+}
 
 // The year groups anyone can pick, in school order — Year 1 to Year 13,
 // then 18+ for adult learners. Used for a student's own year group and for
@@ -375,11 +436,11 @@ const VALID_YEAR_GROUPS = [...Array.from({ length: 13 }, (_, i) => `Year ${i + 1
 /**
  * A teacher's year groups arrive as an array of strings. Returns them
  * de-duplicated and in school order, or null if anything in it is not a
- * real year group (or it is not an array at all).
+ * real year group (or it is not an array of strings at all).
  */
 function normaliseYearGroups(value) {
-  if (!Array.isArray(value)) return null;
-  const picked = new Set(value.map(String));
+  if (!Array.isArray(value) || value.some((y) => typeof y !== 'string')) return null;
+  const picked = new Set(value);
   if ([...picked].some((y) => !VALID_YEAR_GROUPS.includes(y))) return null;
   return VALID_YEAR_GROUPS.filter((y) => picked.has(y));
 }
@@ -389,27 +450,27 @@ function validateRegistration(body, options = {}) {
 
   if (!isJsonObject(body)) return ['Request body must be a JSON object.'];
 
-  if (!body.school || !String(body.school).trim()) {
+  errors.push(...validateTextFields(body, [
+    ['school', 'School name', 150],
+    ['contact', 'Contact person', 100],
+    ['email', 'Contact email', 254],
+    ['session', 'Session', 100],
+    ['notes', 'Notes', 1000],
+    ['file_name', 'File name', 255]
+  ]));
+  if (errors.length) return errors;
+
+  if (!body.school || !body.school.trim()) {
     errors.push('School name is required.');
-  } else if (String(body.school).trim().length > MAX_LENGTH.school) {
-    errors.push(`School name must be ${MAX_LENGTH.school} characters or fewer.`);
   }
-  if (!body.contact || !String(body.contact).trim()) {
+  if (!body.contact || !body.contact.trim()) {
     errors.push('Contact person is required.');
-  } else if (String(body.contact).trim().length > MAX_LENGTH.name) {
-    errors.push(`Contact name must be ${MAX_LENGTH.name} characters or fewer.`);
   }
 
   // Simple email shape check: something@something.something
   const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(body.email || '').trim());
-  if (!emailOk || String(body.email).trim().length > MAX_LENGTH.email) {
+  if (!emailOk) {
     errors.push('A valid contact email is required.');
-  }
-  if (String(body.notes ?? '').trim().length > MAX_LENGTH.notes) {
-    errors.push(`Notes must be ${MAX_LENGTH.notes} characters or fewer.`);
-  }
-  if (String(body.file_name ?? '').trim().length > MAX_LENGTH.fileName) {
-    errors.push(`File name must be ${MAX_LENGTH.fileName} characters or fewer.`);
   }
 
   const students = strictInteger(body.students);
@@ -441,7 +502,7 @@ function validateRegistration(body, options = {}) {
   // Public teacher registration is restricted to the three advertised days.
   // An admin full edit may use another real date for a correction, make-up
   // visit, or a fourth day added late, so that route omits eventDaysOnly.
-  if (!isRealDate(body.date)) {
+  if (typeof body.date !== 'string' || !isRealDate(body.date)) {
     errors.push('A valid visit date is required.');
   } else if (options.eventDaysOnly && !EVENT_DAYS.some((day) => day.date === body.date)) {
     errors.push('Please select one of the available event days.');
@@ -473,16 +534,16 @@ function validateRegistration(body, options = {}) {
 /** Pulls just the fields we store out of a request body (ignores anything extra). */
 function cleanRegistration(body) {
   return {
-    school: String(body.school).trim(),
-    contact: String(body.contact).trim(),
-    email: String(body.email).trim(),
+    school: body.school.trim(),
+    contact: body.contact.trim(),
+    email: body.email.trim(),
     students: strictInteger(body.students),
     adults: body.adults === undefined ? 0 : strictInteger(body.adults),
     not_attending: body.not_attending === undefined ? 0 : strictInteger(body.not_attending),
-    session: String(body.session).trim(),
-    date: String(body.date),
-    notes: String(body.notes ?? '').trim(),
-    file_name: String(body.file_name ?? '').trim(),
+    session: body.session.trim(),
+    date: body.date,
+    notes: (body.notes ?? '').trim(),
+    file_name: (body.file_name ?? '').trim(),
     // null = "not sent", so an admin edit leaves the stored value alone.
     year_groups: body.year_groups === undefined
       ? null
@@ -577,14 +638,10 @@ app.get('/api/registrations/count', (req, res) => {
  * 'Pending'. Also generates a unique token, the shareable /join/:token
  * link built from it, and a QR code image (data URL) for that link — so
  * the teacher can hand it to their students to self-register.
- * Responds with the created record plus { link, qrCode }.
+ * Responds with the created record plus { link, qrCode, portalLink }.
  *
- * NOTE ON THE TWO LINKS: the same token opens two different pages.
- *   /join/<token>      → the STUDENT sign-up page. This is `link` below,
- *                        the one that goes in the QR code and gets shared.
- *   /register/<token>  → the TEACHER's own portal for managing the class.
- * Only the student link is built here, because that is the one the
- * teacher is about to hand out; register.html shows them both.
+ * Separate UUIDs protect the two links: `link` is the student /join URL;
+ * `portalLink` is the secret teacher /register URL. Only share `link`.
  */
 app.post('/api/registrations', createRegistrationLimiter, async (req, res) => {
   const errors = validateRegistration(req.body, { eventDaysOnly: true, requireYearGroups: true });
@@ -595,18 +652,19 @@ app.post('/api/registrations', createRegistrationLimiter, async (req, res) => {
 
   const data = cleanRegistration(req.body);
   const token = crypto.randomUUID();
+  const teacherToken = crypto.randomUUID();
 
   // "?" placeholders are PREPARED STATEMENTS. The database treats the
   // values purely as data, never as SQL — this is what prevents
   // SQL injection attacks. Never build SQL strings by hand.
   const result = db
     .prepare(`
-      INSERT INTO registrations (school, contact, email, students, adults, not_attending, session, date, notes, file_name, year_groups, status, token, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending', ?, datetime('now'))
+      INSERT INTO registrations (school, contact, email, students, adults, not_attending, session, date, notes, file_name, year_groups, status, token, teacher_token, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending', ?, ?, datetime('now'))
     `)
     .run(data.school, data.contact, data.email, data.students, data.adults,
          data.not_attending, data.session, data.date, data.notes, data.file_name,
-         data.year_groups, token);
+         data.year_groups, token, teacherToken);
 
   const created = db
     .prepare(`SELECT ${REGISTRATION_COLUMNS} FROM registrations WHERE id = ?`)
@@ -616,7 +674,8 @@ app.post('/api/registrations', createRegistrationLimiter, async (req, res) => {
   // not from the row we just read back — which is why `created` can safely
   // leave the token column out. The teacher gets the link and the QR code;
   // the raw token is never a field of its own in the reply.
-  const link = `${req.protocol}://${req.get('host')}/join/${token}`;
+  const link = `${publicBaseUrl(req)}/join/${token}`;
+  const portalLink = `${publicBaseUrl(req)}/register/${teacherToken}`;
 
   let qrCode = null;
   try {
@@ -637,7 +696,7 @@ app.post('/api/registrations', createRegistrationLimiter, async (req, res) => {
   });
 
   // 201 = "Created".
-  res.status(201).json({ ...created, link, qrCode });
+  res.status(201).json({ ...created, link, portalLink, qrCode });
 });
 
 /**
@@ -697,6 +756,23 @@ app.put('/api/registrations/:id', requireAdmin, (req, res) => {
   res.json(db.prepare(`SELECT ${REGISTRATION_COLUMNS} FROM registrations WHERE id = ?`).get(id));
 });
 
+/** Rotate the teacher credential; student links remain unchanged. ADMIN ONLY. */
+app.post('/api/registrations/:id/teacher-link', requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  const existing = db.prepare('SELECT id, is_walk_in FROM registrations WHERE id = ?').get(id);
+  if (!existing) {
+    return res.status(404).json({ errors: ['Record not found.'] });
+  }
+  if (isWalkInRegistration(existing)) {
+    return res.status(409).json({ errors: ['The walk-in container has no teacher portal.'] });
+  }
+
+  const teacherToken = crypto.randomUUID();
+  db.prepare('UPDATE registrations SET teacher_token = ? WHERE id = ?').run(teacherToken, id);
+  const portalLink = `${publicBaseUrl(req)}/register/${teacherToken}`;
+  res.json({ portalLink });
+});
+
 /**
  * DELETE /api/registrations/:id
  * Removes a record permanently.
@@ -732,25 +808,29 @@ function validateStudent(body) {
 
   if (!isJsonObject(body)) return ['Request body must be a JSON object.'];
 
-  if (!body.name || !String(body.name).trim()) {
-    errors.push('Student name is required.');
-  } else if (String(body.name).trim().length > MAX_LENGTH.name) {
-    errors.push(`Student name must be ${MAX_LENGTH.name} characters or fewer.`);
-  }
+  errors.push(...validateTextFields(body, [
+    ['name', 'Student name', 100],
+    ['allergies', 'Allergies', 500],
+    ['year_group', 'Year group', 100],
+    ['preferred_session', 'Preferred session', 100]
+  ]));
+  if (errors.length) return errors;
 
-  if (String(body.allergies ?? '').trim().length > MAX_LENGTH.allergies) {
-    errors.push(`Allergies / health conditions must be ${MAX_LENGTH.allergies} characters or fewer.`);
+  if (!body.name || !body.name.trim()) {
+    errors.push('Student name is required.');
   }
 
   const ageProvided = body.age !== undefined && body.age !== null && body.age !== '';
   if (ageProvided) {
     const age = strictInteger(body.age);
-    if (age === null || age < 1 || age > 25) {
-      errors.push('Age must be a whole number between 1 and 25.');
+    // 120, not a school-age cap: individuals in the 18+ group include
+    // parents and other adults from the community.
+    if (age === null || age < 1 || age > 120) {
+      errors.push('Age must be a whole number between 1 and 120.');
     }
   }
 
-  if (!VALID_YEAR_GROUPS.includes(String(body.year_group))) {
+  if (!VALID_YEAR_GROUPS.includes(body.year_group)) {
     errors.push('Please select a valid year group.');
   }
 
@@ -761,7 +841,7 @@ function validateStudent(body) {
     'How to Hack a Bank (Ethical Hacking Workshop)',
     "DJ'ing Basics Workshop"
   ];
-  if (!validSessions.includes(String(body.preferred_session))) {
+  if (!validSessions.includes(body.preferred_session)) {
     errors.push('Please select a preferred session.');
   }
 
@@ -771,11 +851,11 @@ function validateStudent(body) {
 function cleanStudent(body) {
   const ageProvided = body.age !== undefined && body.age !== null && body.age !== '';
   return {
-    name: String(body.name).trim(),
+    name: body.name.trim(),
     age: ageProvided ? strictInteger(body.age) : null,
-    year_group: String(body.year_group).trim(),
-    allergies: String(body.allergies ?? '').trim(),
-    preferred_session: String(body.preferred_session).trim()
+    year_group: body.year_group.trim(),
+    allergies: (body.allergies ?? '').trim(),
+    preferred_session: body.preferred_session.trim()
   };
 }
 
@@ -812,7 +892,7 @@ function requireTeacherToken(req, res, next) {
   // Read the safe columns only. The token was the input to this lookup, so
   // there is no reason to carry a second copy of it around on req.
   const registration = db
-    .prepare(`SELECT ${REGISTRATION_COLUMNS}, is_walk_in FROM registrations WHERE token = ?`)
+    .prepare(`SELECT ${REGISTRATION_COLUMNS}, is_walk_in FROM registrations WHERE teacher_token = ?`)
     .get(token);
 
   if (!registration || isWalkInRegistration(registration)) {
@@ -879,14 +959,10 @@ app.get('/api/my-registration', requireTeacherToken, (req, res) => {
  * inside the link, exactly as it does at registration time.
  */
 app.get('/api/my-registration/qr', requireTeacherToken, async (req, res) => {
-  // Read the token back the same way requireTeacherToken did. We cannot use
-  // req.registration for this, because that row deliberately leaves the
-  // token column out — and the link needs the token in it.
-  const authHeader = String(req.get('authorization') || '');
-  const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
-  const token = bearerMatch ? bearerMatch[1].trim() : String(req.query.token || '').trim();
+  // Authentication uses the teacher secret; the QR must use the student token.
+  const { token } = db.prepare('SELECT token FROM registrations WHERE id = ?').get(req.registration.id);
 
-  const link = `${req.protocol}://${req.get('host')}/join/${token}`;
+  const link = `${publicBaseUrl(req)}/join/${token}`;
 
   let qrCode = null;
   try {
@@ -915,7 +991,7 @@ app.get('/api/my-registration/students', requireTeacherToken, (req, res) => {
  * POST /api/my-registration/students
  * A teacher adding one of their own students by hand.
  */
-app.post('/api/my-registration/students', studentSignUpLimiter, requireTeacherToken, (req, res) => {
+app.post('/api/my-registration/students', requireTeacherToken, teacherStudentAddLimiter, (req, res) => {
   const errors = validateStudent(req.body);
   if (errors.length) {
     return res.status(400).json({ errors });
@@ -1287,14 +1363,9 @@ app.get('/api/registrations/:id/students', requireAdmin, (req, res) => {
  * ids existed. A token is a random UUID: you cannot guess one, and the
  * only one you hold is your own.
  */
-app.post('/api/registrations/token/:token/students', studentSignUpLimiter, (req, res) => {
-  const registration = db
-    .prepare('SELECT id, date FROM registrations WHERE token = ?')
-    .get(req.params.token);
-
-  if (!registration) {
-    return res.status(404).json({ errors: ['Registration link not found.'] });
-  }
+app.post('/api/registrations/token/:token/students', publicStudentIpLimiter,
+  requireStudentRegistration, publicStudentSignUpLimiter, (req, res) => {
+  const registration = req.studentRegistration;
 
   const errors = validateStudent(req.body);
   if (errors.length) {
@@ -1319,8 +1390,7 @@ app.post('/api/registrations/token/:token/students', studentSignUpLimiter, (req,
 
 // --- Token link pages ---------------------------------------------------
 /**
- * One token, two doors. Which page you land on depends on the path, and
- * that split is the whole point:
+ * Separate student and teacher tokens protect these two doors:
  *
  *   /join/:token      the STUDENT self-registration page. This is the
  *                     address in the QR code and in the link the teacher
@@ -1331,8 +1401,8 @@ app.post('/api/registrations/token/:token/students', studentSignUpLimiter, (req,
  *                     signed up so far, the share link and QR code again,
  *                     and a form to type a student in by hand.
  *
- * Both are PUBLIC pages with no login, because holding the token IS the
- * credential. That is not an oversight — see requireTeacherToken above.
+ * The student page uses registrations.token; the portal uses teacher_token.
+ * Holding the secret portal token is the teacher credential.
  * Nothing sensitive lives in the HTML itself either way: the pages are
  * empty shells that ask the API for data, and the API checks the token.
  *
@@ -1357,30 +1427,31 @@ app.get('/join/:token', (req, res) => {
 });
 
 app.get('/register/:token', (req, res) => {
-  const reg = db.prepare('SELECT is_walk_in FROM registrations WHERE token = ?').get(req.params.token);
+  const reg = db.prepare('SELECT is_walk_in FROM registrations WHERE teacher_token = ?').get(req.params.token);
   if (!reg) {
     return res.redirect('/');
   }
   if (isWalkInRegistration(reg)) {
-    // There is no teacher behind the walk-in container, so there is no
-    // teacher portal for it — and its token is public, so serving one here
-    // would hand every visitor the tools for managing individual sign-ups.
-    //
-    // Note this is a 404, NOT the redirect above. The redirect is for a
-    // mistyped or expired link, which is a visitor's honest mistake and is
-    // best answered by quietly putting them back on the home page. A link to
-    // /register/<the public walk-in token> is different: nothing in this site
-    // ever produces one, so if it is being requested, either somebody built
-    // it by hand or we have a bug that generated it. Bouncing that to the
-    // home page would hide it. A 404 says plainly that this page does not
-    // exist.
-    //
-    // Plain text rather than a designed error page: the site has no 404
-    // page of its own, and inventing one is a bigger change than this fix
-    // needs. The status code is the part that matters.
+    // Defence in depth: a walk-in row can never open a teacher portal,
+    // even if a credential were assigned outside the startup migration.
     return res.status(404).type('text').send('Not found.');
   }
   res.sendFile('teacher.html', { root: PUBLIC_DIR });
+});
+
+// Unknown API routes use the same JSON error shape as known routes.
+app.use('/api', (req, res) => {
+  res.status(404).json({ errors: ['Not found.'] });
+});
+
+// Keep internal details in server logs, never in an HTTP response.
+app.use((err, req, res, next) => {
+  console.error('Request failed:', err);
+  if (res.headersSent) return next(err);
+  const status = Number.isInteger(err.status) && err.status >= 400 && err.status < 500
+    ? err.status : 500;
+  const message = status === 413 ? 'Request body too large.' : 'Something went wrong.';
+  res.status(status).json({ errors: [message] });
 });
 
 // --- Start ------------------------------------------------------------

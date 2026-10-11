@@ -315,15 +315,27 @@
         <form id="teacherForm" novalidate>
           <div class="field">
             <label for="t-contact" data-i18n="label_fullname">Full name</label>
-            <input type="text" id="t-contact" name="contact" maxlength="100" required placeholder="e.g. J. Fale">
+            <input type="text" id="t-contact" name="contact" required placeholder="e.g. J. Fale" maxlength="100">
           </div>
           <div class="field">
             <label for="t-email" data-i18n="label_email">Email</label>
-            <input type="email" id="t-email" name="email" maxlength="254" required placeholder="you@school.school.nz">
+            <input type="email" id="t-email" name="email" required placeholder="you@school.school.nz" maxlength="254">
           </div>
           <div class="field">
             <label for="t-school" data-i18n="label_school">School name</label>
-            <input type="text" id="t-school" name="school" maxlength="150" required placeholder="Search your school..." data-i18n-placeholder="placeholder_school">
+            <input type="text" id="t-school" name="school" required placeholder="Search your school..." data-i18n-placeholder="placeholder_school" list="schoolOptions" autocomplete="off" maxlength="150">
+            <!--
+              A <datalist> gives native browser autocomplete — type a few
+              letters and the browser suggests matches from schoolOptions
+              below, built from public/schools.js. It is deliberately NOT a
+              restriction: the input stays a free-text box, so a school
+              outside our South Auckland list (see schools.js for why it is
+              scoped that way) can still be typed in full and submitted
+              normally. Autocomplete that silently rejects anything not on
+              its list would lock out real schools just because our data is
+              incomplete — this one never does that.
+            -->
+            <datalist id="schoolOptions"></datalist>
           </div>
           <div class="field-row">
             <div class="field">
@@ -446,12 +458,12 @@
           <form id="manualStudentForm" novalidate>
             <div class="field">
               <label for="m-name" data-i18n="label_student_name">Student name</label>
-              <input type="text" id="m-name" name="name" maxlength="100" required>
+              <input type="text" id="m-name" name="name" required maxlength="100">
             </div>
             <div class="field-row">
               <div class="field">
                 <label for="m-age" data-i18n="label_age">Age</label>
-                <input type="number" id="m-age" name="age" min="1" max="25">
+                <input type="number" id="m-age" name="age" min="1" max="120">
               </div>
               <div class="field">
                 <label for="m-year" data-i18n="label_year_group">Year group</label>
@@ -462,7 +474,7 @@
             </div>
             <div class="field">
               <label for="m-allergies"><span data-i18n="label_allergies">Allergies / health conditions</span> <span style="color:var(--text-muted); font-weight:400;" data-i18n="label_optional">(optional)</span></label>
-              <textarea id="m-allergies" name="allergies" maxlength="500" rows="2"></textarea>
+              <textarea id="m-allergies" name="allergies" rows="2" maxlength="500"></textarea>
             </div>
             <div class="field">
               <label for="m-session" data-i18n="label_preferred_session">Preferred session</label>
@@ -495,6 +507,7 @@
 <div id="site-footer"></div>
 
 <script src="/event-days.js"></script>
+<script src="/schools.js"></script>
 <script src="/translations.js"></script>
 <script src="/nav.js"></script>
 <script>
@@ -513,6 +526,17 @@
 
   // Build the "which day" choices from the single EVENT_DAYS list, so that
   // changing the dates is a one-file edit (see public/event-days.js).
+  // Populate the school-name datalist from public/schools.js. textContent
+  // is never used here because <option value="..."> IS the safe way to set
+  // a datalist option's text — there is no innerHTML involved, so no
+  // escaping step is needed, unlike the day-label building below.
+  const schoolOptions = document.getElementById('schoolOptions');
+  (window.SOUTH_AUCKLAND_SCHOOLS || []).forEach((name) => {
+    const opt = document.createElement('option');
+    opt.value = name;
+    schoolOptions.appendChild(opt);
+  });
+
   const dayChoices = document.getElementById('dayChoices');
   (window.EVENT_DAYS || []).forEach((day, i) => {
     const id = `t-day-${i}`;
@@ -654,7 +678,7 @@
     submitBtn.disabled = !acceptCheckbox.checked;
   });
 
-  // The teacher's own link token, taken from the shareable link the server
+  // The teacher's secret token, taken from the portal link the server
   // hands back after registering. It is what lets this page add students
   // to THIS class and no other — see the manual student form below.
   let myToken = null;
@@ -685,17 +709,9 @@
       const responseData = await res.json();
 
       if (res.ok) {
-        // The link looks like http://host/join/<token>; the last path
-        // segment is the token. The server never sends the raw token as a
-        // field of its own — the link is the one place it belongs.
-        myToken = String(responseData.link || '').split('/').pop();
-
-        // The same token opens two different pages, and the teacher needs
-        // both: /join/<token> to hand to students, /register/<token> to come
-        // back to themselves. The server only builds the student one (it is
-        // the one in the QR code), so we build the portal one here by
-        // swapping the path segment.
-        const portalUrl = `${window.location.origin}/register/${myToken}`;
+        // The portal has a separate secret; the student link is safe to share.
+        const portalUrl = responseData.portalLink;
+        myToken = new URL(portalUrl).pathname.split('/').pop();
 
         document.getElementById('shareLink').value = responseData.link;
         document.getElementById('qrImage').src = responseData.qrCode || '';
