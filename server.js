@@ -41,14 +41,17 @@
 require('dotenv').config();
 
 const express = require('express');
+const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const QRCode = require('qrcode');
+const PDFDocument = require('pdfkit');            // admin PDF export
 const bcrypt = require('bcryptjs');           // password hashing (pure JS, no build step)
 const cookieParser = require('cookie-parser'); // reads/writes the admin session cookie
-const rateLimit = require('express-rate-limit'); // caps how often one IP can hit a route
+const { rateLimit, ipKeyGenerator } = require('express-rate-limit'); // caps how often one IP can hit a route
 const db = require('./db'); // our database module (creates the table on first run)
 const EVENT_DAYS = require('./public/event-days.js');
+const { sendConfirmationEmail } = require('./email'); // confirmation emails (logs only until a provider is set up)
 
 const app = express();
 
@@ -151,10 +154,11 @@ app.use(express.static(path.join(__dirname, 'public')));
  * The limits below are applied per route rather than to the whole site,
  * because the sensible number is different for each one.
  */
-function makeLimiter(windowMs, limit) {
+function makeLimiter(windowMs, limit, keyGenerator) {
   return rateLimit({
     windowMs,
     limit,
+    ...(keyGenerator ? { keyGenerator } : {}),
     standardHeaders: true, // report the limit in the modern RateLimit-* headers
     legacyHeaders: false,  // ...and not the old X-RateLimit-* ones
     // Reply in the same { errors: [...] } shape as the rest of the API, so
@@ -170,12 +174,25 @@ function makeLimiter(windowMs, limit) {
 // sitting stays well under 20, so this only ever catches a script.
 const createRegistrationLimiter = makeLimiter(60 * 60 * 1000, 20);
 
-// Adding a student: 60 per hour per IP.
-// Deliberately HIGHER than the registration limit, because one teacher
-// typing a whole class in by hand is a completely normal thing to do —
-// 30 children, plus corrections and re-entries, would blow through a
-// smaller limit and lock out the very person we built this for.
-const studentSignUpLimiter = makeLimiter(60 * 60 * 1000, 60);
+// Adding a student: 200 per hour per IP *per class link*.
+//
+// Counted per (IP, token) rather than per IP alone, because of how schools
+// connect: every device on a school's network usually reaches us from ONE
+// public IP. A plain per-IP limit meant that once a school's classes had
+// signed up 60 children in an hour between them, every further child at
+// that school was refused — the exact moment (a class scanning the QR code
+// together) this site exists for. Keyed by link as well, each class gets
+// its own allowance, and 200 covers the largest class plus corrections.
+//
+// A script still cannot flood one class: it gets 200 an hour against any
+// single link, from any single address.
+function readLinkToken(req) {
+  if (req.params && req.params.token) return String(req.params.token);
+  const bearerMatch = String(req.get('authorization') || '').match(/^Bearer\s+(.+)$/i);
+  return bearerMatch ? bearerMatch[1].trim() : String(req.query.token || '').trim();
+}
+const studentSignUpLimiter = makeLimiter(60 * 60 * 1000, 200,
+  (req) => `${ipKeyGenerator(req.ip)}|${readLinkToken(req)}`);
 
 // Admin login: 10 attempts per 15 minutes per IP.
 // The tightest limit, because this is the one route where an attacker
@@ -281,7 +298,7 @@ app.get('/api/admin/session', (req, res) => {
  * prepared statements further down.
  */
 const REGISTRATION_COLUMNS =
-  'id, school, contact, email, students, adults, not_attending, session, date, notes, file_name, status';
+  'id, school, contact, email, students, adults, not_attending, session, date, notes, file_name, status, year_groups';
 
 // --- The shared "Individual / Walk-in" registration --------------------
 /**
@@ -337,6 +354,36 @@ function isRealDate(value) {
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === text;
 }
 
+// Upper limits on free-text fields. Two of the routes that take these are
+// public, and without a cap one request could store a name the size of a
+// novel — which then gets drawn into every admin table and chart label.
+// Generous enough that no real school or child's name comes near them.
+const MAX_LENGTH = {
+  name: 100,
+  school: 150,
+  email: 254,
+  allergies: 500,
+  notes: 1000,
+  fileName: 255
+};
+
+// The year groups anyone can pick, in school order — Year 1 to Year 13,
+// then 18+ for adult learners. Used for a student's own year group and for
+// the year groups a teacher says their class covers.
+const VALID_YEAR_GROUPS = [...Array.from({ length: 13 }, (_, i) => `Year ${i + 1}`), '18+'];
+
+/**
+ * A teacher's year groups arrive as an array of strings. Returns them
+ * de-duplicated and in school order, or null if anything in it is not a
+ * real year group (or it is not an array at all).
+ */
+function normaliseYearGroups(value) {
+  if (!Array.isArray(value)) return null;
+  const picked = new Set(value.map(String));
+  if ([...picked].some((y) => !VALID_YEAR_GROUPS.includes(y))) return null;
+  return VALID_YEAR_GROUPS.filter((y) => picked.has(y));
+}
+
 function validateRegistration(body, options = {}) {
   const errors = [];
 
@@ -344,15 +391,25 @@ function validateRegistration(body, options = {}) {
 
   if (!body.school || !String(body.school).trim()) {
     errors.push('School name is required.');
+  } else if (String(body.school).trim().length > MAX_LENGTH.school) {
+    errors.push(`School name must be ${MAX_LENGTH.school} characters or fewer.`);
   }
   if (!body.contact || !String(body.contact).trim()) {
     errors.push('Contact person is required.');
+  } else if (String(body.contact).trim().length > MAX_LENGTH.name) {
+    errors.push(`Contact name must be ${MAX_LENGTH.name} characters or fewer.`);
   }
 
   // Simple email shape check: something@something.something
   const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(body.email || '').trim());
-  if (!emailOk) {
+  if (!emailOk || String(body.email).trim().length > MAX_LENGTH.email) {
     errors.push('A valid contact email is required.');
+  }
+  if (String(body.notes ?? '').trim().length > MAX_LENGTH.notes) {
+    errors.push(`Notes must be ${MAX_LENGTH.notes} characters or fewer.`);
+  }
+  if (String(body.file_name ?? '').trim().length > MAX_LENGTH.fileName) {
+    errors.push(`File name must be ${MAX_LENGTH.fileName} characters or fewer.`);
   }
 
   const students = strictInteger(body.students);
@@ -390,6 +447,20 @@ function validateRegistration(body, options = {}) {
     errors.push('Please select one of the available event days.');
   }
 
+  // Year groups: required on the public teacher form. An admin edit may
+  // leave them out entirely (the admin table does not edit them), in which
+  // case the stored value is kept — but anything that IS sent is checked.
+  if (body.year_groups === undefined) {
+    if (options.requireYearGroups) errors.push('Please choose at least one year group.');
+  } else {
+    const yearGroups = normaliseYearGroups(body.year_groups);
+    if (yearGroups === null) {
+      errors.push('Year groups must be chosen from the list.');
+    } else if (!yearGroups.length) {
+      errors.push('Please choose at least one year group.');
+    }
+  }
+
   if (typeof body.session !== 'string' || !body.session.trim()) {
     errors.push('Please select a session.');
   } else if (options.eventDaysOnly && body.session !== 'NZ Tech Week 2027') {
@@ -411,8 +482,50 @@ function cleanRegistration(body) {
     session: String(body.session).trim(),
     date: String(body.date),
     notes: String(body.notes ?? '').trim(),
-    file_name: String(body.file_name ?? '').trim()
+    file_name: String(body.file_name ?? '').trim(),
+    // null = "not sent", so an admin edit leaves the stored value alone.
+    year_groups: body.year_groups === undefined
+      ? null
+      : normaliseYearGroups(body.year_groups).join(', ')
   };
+}
+
+// --- Confirmation emails ----------------------------------------------
+/**
+ * Where the event is, for the confirmation email's "save the date" box.
+ * Same address as the site footer and the map on the home page.
+ */
+const EVENT_LOCATION = '15 Earl Richardson Avenue, Wiri, Auckland 2104';
+
+/** "Day 1 — Tuesday 18 May 2027" for a stored date, or null if it is not an event day. */
+function eventDayLabel(date) {
+  const day = EVENT_DAYS.find((d) => d.date === date);
+  return day ? day.label : null;
+}
+
+/**
+ * Confirmation for a newly added student.
+ *
+ * There is no address to send to yet: the student forms do not ask for an
+ * email (they collect as little about children as the event needs), so
+ * this passes `null` and email.js just logs that it skipped. It is wired in
+ * anyway so that if an email field is ever added, filling in `to` here is
+ * the whole job.
+ *
+ * The date is the class's event day. Individual sign-ups sit under the
+ * walk-in container, whose date is not an event day, so theirs comes out
+ * as null and the email says "to be confirmed" rather than a wrong date.
+ *
+ * Not awaited by the routes: the student is saved whatever email does.
+ */
+function sendStudentConfirmation(registrationDate, student) {
+  sendConfirmationEmail(null, {
+    recipientName: student.name,
+    workshopName: student.preferred_session,
+    eventDate: eventDayLabel(registrationDate),
+    eventLocation: EVENT_LOCATION,
+    registrationType: 'student'
+  });
 }
 
 // --- API routes ------------------------------------------------------
@@ -474,7 +587,7 @@ app.get('/api/registrations/count', (req, res) => {
  * teacher is about to hand out; register.html shows them both.
  */
 app.post('/api/registrations', createRegistrationLimiter, async (req, res) => {
-  const errors = validateRegistration(req.body, { eventDaysOnly: true });
+  const errors = validateRegistration(req.body, { eventDaysOnly: true, requireYearGroups: true });
   if (errors.length) {
     // 400 = "Bad Request": you sent me data I can't accept.
     return res.status(400).json({ errors });
@@ -488,11 +601,12 @@ app.post('/api/registrations', createRegistrationLimiter, async (req, res) => {
   // SQL injection attacks. Never build SQL strings by hand.
   const result = db
     .prepare(`
-      INSERT INTO registrations (school, contact, email, students, adults, not_attending, session, date, notes, file_name, status, token)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending', ?)
+      INSERT INTO registrations (school, contact, email, students, adults, not_attending, session, date, notes, file_name, year_groups, status, token, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending', ?, datetime('now'))
     `)
     .run(data.school, data.contact, data.email, data.students, data.adults,
-         data.not_attending, data.session, data.date, data.notes, data.file_name, token);
+         data.not_attending, data.session, data.date, data.notes, data.file_name,
+         data.year_groups, token);
 
   const created = db
     .prepare(`SELECT ${REGISTRATION_COLUMNS} FROM registrations WHERE id = ?`)
@@ -510,6 +624,17 @@ app.post('/api/registrations', createRegistrationLimiter, async (req, res) => {
   } catch (err) {
     console.error('QR code generation failed:', err.message);
   }
+
+  // Confirmation to the teacher's address. Deliberately not awaited: the
+  // registration is already saved, and the teacher's success screen should
+  // not wait on (or fail because of) an email provider.
+  sendConfirmationEmail(data.email, {
+    recipientName: data.contact,
+    workshopName: null, // teachers don't pick one — each student does
+    eventDate: eventDayLabel(data.date),
+    eventLocation: EVENT_LOCATION,
+    registrationType: 'teacher'
+  });
 
   // 201 = "Created".
   res.status(201).json({ ...created, link, qrCode });
@@ -562,10 +687,12 @@ app.put('/api/registrations/:id', requireAdmin, (req, res) => {
   db.prepare(`
     UPDATE registrations
     SET school = ?, contact = ?, email = ?, students = ?, adults = ?,
-        not_attending = ?, session = ?, date = ?, notes = ?, file_name = ?
+        not_attending = ?, session = ?, date = ?, notes = ?, file_name = ?,
+        year_groups = COALESCE(?, year_groups)
     WHERE id = ?
   `).run(data.school, data.contact, data.email, data.students, data.adults,
-         data.not_attending, data.session, data.date, data.notes, data.file_name, id);
+         data.not_attending, data.session, data.date, data.notes, data.file_name,
+         data.year_groups, id);
 
   res.json(db.prepare(`SELECT ${REGISTRATION_COLUMNS} FROM registrations WHERE id = ?`).get(id));
 });
@@ -607,6 +734,12 @@ function validateStudent(body) {
 
   if (!body.name || !String(body.name).trim()) {
     errors.push('Student name is required.');
+  } else if (String(body.name).trim().length > MAX_LENGTH.name) {
+    errors.push(`Student name must be ${MAX_LENGTH.name} characters or fewer.`);
+  }
+
+  if (String(body.allergies ?? '').trim().length > MAX_LENGTH.allergies) {
+    errors.push(`Allergies / health conditions must be ${MAX_LENGTH.allergies} characters or fewer.`);
   }
 
   const ageProvided = body.age !== undefined && body.age !== null && body.age !== '';
@@ -617,12 +750,17 @@ function validateStudent(body) {
     }
   }
 
-  const validYearGroups = [...Array.from({ length: 13 }, (_, i) => `Year ${i + 1}`), '18+'];
-  if (!validYearGroups.includes(String(body.year_group))) {
+  if (!VALID_YEAR_GROUPS.includes(String(body.year_group))) {
     errors.push('Please select a valid year group.');
   }
 
-  const validSessions = ['Robotics', 'Gaming', 'Programming', 'Computer Building', 'Social Media'];
+  const validSessions = [
+    'AI Fundamentals Workshop',
+    'Graphic Design Workshop',
+    'Build and Battle Robots Workshop',
+    'How to Hack a Bank (Ethical Hacking Workshop)',
+    "DJ'ing Basics Workshop"
+  ];
   if (!validSessions.includes(String(body.preferred_session))) {
     errors.push('Please select a preferred session.');
   }
@@ -720,7 +858,8 @@ app.get('/api/my-registration', requireTeacherToken, (req, res) => {
     date: r.date,
     notes: r.notes,
     file_name: r.file_name,
-    status: r.status
+    status: r.status,
+    year_groups: r.year_groups
   });
 });
 
@@ -790,6 +929,8 @@ app.post('/api/my-registration/students', studentSignUpLimiter, requireTeacherTo
     `)
     .run(req.registration.id, data.name, data.age, data.year_group,
          data.allergies, data.preferred_session);
+
+  sendStudentConfirmation(req.registration.date, data);
 
   res.status(201).json(db.prepare('SELECT * FROM students WHERE id = ?').get(result.lastInsertRowid));
 });
@@ -897,6 +1038,221 @@ app.get('/api/admin/students', requireAdmin, (req, res) => {
   res.json(rows);
 });
 
+// --- Admin PDF export ---------------------------------------------------
+/**
+ * The PDF is drawn in a font that has the macrons and ʻokina of Māori,
+ * Samoan and Tongan names. PDFKit's built-in Helvetica only covers the old
+ * Windows-1252 character set, so "Ana Toluta’u" survives but "Tāne" or
+ * "ʻAna" would print as junk — not acceptable for a list of these
+ * children. We use a font the machine already has rather than shipping
+ * one in the repo: Arial on Windows and macOS, DejaVu or Liberation Sans
+ * on Linux. If none is found it falls back to Helvetica and says so once.
+ */
+const PDF_FONT_CANDIDATES = [
+  ['C:/Windows/Fonts/arial.ttf', 'C:/Windows/Fonts/arialbd.ttf'],
+  ['/System/Library/Fonts/Supplemental/Arial.ttf', '/System/Library/Fonts/Supplemental/Arial Bold.ttf'],
+  ['/Library/Fonts/Arial.ttf', '/Library/Fonts/Arial Bold.ttf'],
+  ['/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'],
+  ['/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf', '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf']
+];
+const PDF_FONTS = (() => {
+  const found = PDF_FONT_CANDIDATES.find(([regular, bold]) => fs.existsSync(regular) && fs.existsSync(bold));
+  if (found) return { regular: found[0], bold: found[1] };
+  console.warn('PDF export: no Unicode font found, using Helvetica — macrons and ʻokina in names will not print correctly.');
+  return { regular: 'Helvetica', bold: 'Helvetica-Bold' };
+})();
+
+const NZ_TIME_ZONE = 'Pacific/Auckland';
+
+/** Today's date in New Zealand as YYYY-MM-DD (en-CA formats dates that way). */
+function nzDateStamp(date = new Date()) {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: NZ_TIME_ZONE }).format(date);
+}
+
+/**
+ * SQLite's datetime('now') is UTC text, "YYYY-MM-DD HH:MM:SS". Shown in NZ
+ * time, because that is what the people reading the PDF live in.
+ */
+function formatNzDateTime(sqliteUtc) {
+  if (!sqliteUtc) return '—';
+  const date = new Date(`${sqliteUtc.replace(' ', 'T')}Z`);
+  if (Number.isNaN(date.getTime())) return '—';
+  return new Intl.DateTimeFormat('en-NZ', {
+    timeZone: NZ_TIME_ZONE, day: 'numeric', month: 'short', year: 'numeric',
+    hour: 'numeric', minute: '2-digit'
+  }).format(date);
+}
+
+/**
+ * Draws one table, starting a new page (and repeating the header row)
+ * whenever the next row would not fit. Cells wrap rather than truncate,
+ * so a long school or workshop name is never cut off mid-word.
+ */
+function drawPdfTable(doc, columns, rows) {
+  const left = doc.page.margins.left;
+  const usableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  const widths = columns.map((c) => c.width * usableWidth);
+  const pad = 4;
+  const bottom = () => doc.page.height - doc.page.margins.bottom;
+
+  function rowHeight(cells, font) {
+    doc.font(font).fontSize(9);
+    return Math.max(...cells.map((text, i) =>
+      doc.heightOfString(text, { width: widths[i] - pad * 2 }))) + pad * 2;
+  }
+
+  function drawRow(cells, { font, fill }) {
+    const height = rowHeight(cells, font);
+    let y = doc.y;
+    if (y + height > bottom()) {
+      doc.addPage();
+      y = doc.y;
+      if (!fill) drawRow(columns.map((c) => c.label), { font: PDF_FONTS.bold, fill: '#e6f2ed' });
+      y = doc.y;
+    }
+    if (fill) doc.rect(left, y, usableWidth, height).fill(fill);
+    doc.moveTo(left, y + height).lineTo(left + usableWidth, y + height)
+      .lineWidth(0.5).strokeColor('#cccccc').stroke();
+    let x = left;
+    doc.fillColor('#111111').font(font).fontSize(9);
+    cells.forEach((text, i) => {
+      doc.text(text, x + pad, y + pad, { width: widths[i] - pad * 2 });
+      x += widths[i];
+    });
+    doc.x = left;
+    doc.y = y + height;
+  }
+
+  drawRow(columns.map((c) => c.label), { font: PDF_FONTS.bold, fill: '#e6f2ed' });
+  if (!rows.length) {
+    drawRow(['None yet.', ...columns.slice(1).map(() => '')], { font: PDF_FONTS.regular });
+    return;
+  }
+  rows.forEach((cells) => drawRow(cells.map((c) => String(c ?? '—')), { font: PDF_FONTS.regular }));
+}
+
+/**
+ * GET /api/admin/export/pdf
+ * Every student and every teacher registration as one printable PDF.
+ *
+ * ADMIN ONLY — this is the most sensitive thing the site can produce: a
+ * single file of children's names and schools. It deliberately leaves out
+ * ages and allergies, which nobody asked to print, and is sent with
+ * no-store so a shared computer's browser does not keep a cached copy.
+ *
+ * "Teacher registrations" are the rows in `registrations`, minus the
+ * walk-in container (internal plumbing, not a teacher). Students who
+ * signed up on their own are listed with "Individual" as their school.
+ *
+ * Explicit columns throughout, as everywhere else in this file.
+ */
+app.get('/api/admin/export/pdf', requireAdmin, async (req, res) => {
+  const students = db.prepare(`
+    SELECT s.name, s.year_group, s.preferred_session, s.created_at,
+           r.school, r.is_walk_in
+    FROM students s
+    JOIN registrations r ON r.id = s.registration_id
+    ORDER BY r.is_walk_in, r.school COLLATE NOCASE, s.name COLLATE NOCASE
+  `).all();
+
+  const teachers = db.prepare(`
+    SELECT contact, school, email, created_at
+    FROM registrations
+    WHERE is_walk_in = 0
+    ORDER BY school COLLATE NOCASE, contact COLLATE NOCASE
+  `).all();
+
+  const exportedAt = new Date();
+  const doc = new PDFDocument({
+    size: 'A4',
+    layout: 'landscape',
+    margins: { top: 40, bottom: 50, left: 40, right: 40 },
+    bufferPages: true, // so page numbers ("Page 2 of 5") can be added at the end
+    info: { Title: 'NZ Tech Week 2027 — SACTH Registrations', Author: 'Pou Hono' }
+  });
+
+  // Collect the whole file in memory before sending, so a failure halfway
+  // through becomes a clean 500 rather than a truncated download.
+  const chunks = [];
+  doc.on('data', (chunk) => chunks.push(chunk));
+  const finished = new Promise((resolve, reject) => {
+    doc.on('end', resolve);
+    doc.on('error', reject);
+  });
+
+  try {
+    // Header
+    doc.font(PDF_FONTS.bold).fontSize(18).fillColor('#111111')
+      .text('NZ Tech Week 2027 — SACTH Registrations');
+    doc.font(PDF_FONTS.regular).fontSize(10).fillColor('#555555')
+      .text(`Exported ${formatNzDateTime(exportedAt.toISOString().slice(0, 19).replace('T', ' '))} (NZ time)`);
+    doc.moveDown(1.2);
+
+    // Students
+    doc.font(PDF_FONTS.bold).fontSize(13).fillColor('#111111')
+      .text(`Student Registrations (${students.length})`);
+    doc.moveDown(0.4);
+    drawPdfTable(doc, [
+      { label: 'Name', width: 0.22 },
+      { label: 'School', width: 0.22 },
+      { label: 'Year Level', width: 0.1 },
+      { label: 'Workshop Selected', width: 0.28 },
+      { label: 'Registered At', width: 0.18 }
+    ], students.map((s) => [
+      s.name,
+      s.is_walk_in === 1 ? 'Individual' : s.school,
+      s.year_group,
+      s.preferred_session,
+      formatNzDateTime(s.created_at)
+    ]));
+
+    // Teachers
+    doc.moveDown(1.5);
+    if (doc.y > doc.page.height - doc.page.margins.bottom - 80) doc.addPage();
+    doc.font(PDF_FONTS.bold).fontSize(13).fillColor('#111111')
+      .text(`Teacher Registrations (${teachers.length})`, doc.page.margins.left);
+    doc.moveDown(0.4);
+    drawPdfTable(doc, [
+      { label: 'Name', width: 0.24 },
+      { label: 'School', width: 0.28 },
+      { label: 'Email', width: 0.3 },
+      { label: 'Registered At', width: 0.18 }
+    ], teachers.map((t) => [t.contact, t.school, t.email, formatNzDateTime(t.created_at)]));
+
+    // Footer on every page: totals and "Page X of Y". The bottom margin is
+    // lifted while writing it, or PDFKit would treat text in the margin as
+    // overflow and start a new page.
+    const range = doc.bufferedPageRange();
+    const totals = `${students.length} student${students.length === 1 ? '' : 's'} · `
+      + `${teachers.length} teacher registration${teachers.length === 1 ? '' : 's'}`;
+    for (let i = range.start; i < range.start + range.count; i++) {
+      doc.switchToPage(i);
+      const savedBottom = doc.page.margins.bottom;
+      doc.page.margins.bottom = 0;
+      const y = doc.page.height - 30;
+      const width = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+      doc.font(PDF_FONTS.regular).fontSize(8).fillColor('#777777');
+      doc.text(totals, doc.page.margins.left, y, { width, align: 'left', lineBreak: false });
+      doc.text(`Page ${i - range.start + 1} of ${range.count}`, doc.page.margins.left, y,
+        { width, align: 'right', lineBreak: false });
+      doc.page.margins.bottom = savedBottom;
+    }
+
+    doc.end();
+    await finished;
+  } catch (err) {
+    console.error('PDF export failed:', err);
+    return res.status(500).json({ errors: ['Could not create the PDF. Please try again.'] });
+  }
+
+  res.set({
+    'Content-Type': 'application/pdf',
+    'Content-Disposition': `attachment; filename="registrations-${nzDateStamp(exportedAt)}.pdf"`,
+    'Cache-Control': 'no-store'
+  });
+  res.send(Buffer.concat(chunks));
+});
+
 /**
  * GET /api/registrations/:id/students
  * Lists every student linked to one registration.
@@ -933,7 +1289,7 @@ app.get('/api/registrations/:id/students', requireAdmin, (req, res) => {
  */
 app.post('/api/registrations/token/:token/students', studentSignUpLimiter, (req, res) => {
   const registration = db
-    .prepare('SELECT id FROM registrations WHERE token = ?')
+    .prepare('SELECT id, date FROM registrations WHERE token = ?')
     .get(req.params.token);
 
   if (!registration) {
@@ -946,7 +1302,7 @@ app.post('/api/registrations/token/:token/students', studentSignUpLimiter, (req,
   }
 
   const data = cleanStudent(req.body);
-  const result = db
+  db
     .prepare(`
       INSERT INTO students (registration_id, name, age, year_group, allergies, preferred_session)
       VALUES (?, ?, ?, ?, ?, ?)
@@ -954,8 +1310,11 @@ app.post('/api/registrations/token/:token/students', studentSignUpLimiter, (req,
     .run(registration.id, data.name, data.age, data.year_group,
          data.allergies, data.preferred_session);
 
-  const created = db.prepare('SELECT * FROM students WHERE id = ?').get(result.lastInsertRowid);
-  res.status(201).json(created);
+  sendStudentConfirmation(registration.date, data);
+
+  // Reply with only what the sign-up page shows back to the student. This
+  // route is public, so it does not hand out the row's internal ids.
+  res.status(201).json({ name: data.name, preferred_session: data.preferred_session });
 });
 
 // --- Token link pages ---------------------------------------------------
@@ -1026,7 +1385,20 @@ app.get('/register/:token', (req, res) => {
 
 // --- Start ------------------------------------------------------------
 
-app.listen(PORT, () => {
+app.listen(PORT, (err) => {
+  // Express 5 hands a failed listen (most often: the port is already in
+  // use) to this callback. Without this check it printed "running" and
+  // then exited, which is very confusing when another copy is still up.
+  if (err) {
+    console.error('');
+    console.error(`  Could not start on port ${PORT}: ${err.message}`);
+    if (err.code === 'EADDRINUSE') {
+      console.error('  Another program (often another copy of this server) is using that port.');
+      console.error('  Stop it, or set a different PORT in .env.');
+    }
+    console.error('');
+    process.exit(1);
+  }
   console.log('');
   console.log('  Pou Hono is running.');
   console.log(`  Open  http://localhost:${PORT}  in your browser.`);

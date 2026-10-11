@@ -5,9 +5,10 @@
  * <div id="site-footer"></div> near the bottom, then load this script.
  *
  * Also owns the language switcher UI. It only remembers the choice
- * (localStorage) and calls window.applyTranslations(lang) if a page has
- * defined one (translations.js provides this on the priority pages) —
- * pages without translations just keep the picked label, nothing breaks.
+ * (localStorage) and calls window.applyTranslations(lang), which
+ * translations.js provides. Every page loads translations.js BEFORE this
+ * file, so the brand, links and footer below (their data-i18n keys) switch
+ * language everywhere — including pages whose own content is English-only.
  */
 (function () {
   const NAV_HTML = `
@@ -16,7 +17,7 @@
         <a class="site-nav__brand" href="/">
           <img class="site-nav__org-logo" src="/images/SACTH_Symbol-1.webp" alt="SACTH logo" width="40" height="40">
           <img class="site-nav__org-logo" src="/images/tcc_logo_symbol.webp" alt="The Cause Collective logo" width="40" height="40">
-          <span>NZ Tech Week — SACTH</span>
+          <span data-i18n="nav_brand">NZ Tech Week — SACTH</span>
         </a>
 
         <button class="site-nav__toggle" id="navToggle" aria-label="Toggle menu" aria-expanded="false">
@@ -24,10 +25,10 @@
         </button>
 
         <div class="site-nav__menu" id="navMenu">
-          <a href="/" data-nav="home">Home</a>
-          <a href="/register.html" data-nav="register">Register</a>
-          <a href="/faq.html" data-nav="faq">FAQ</a>
-          <a href="#contact" data-nav="contact">Contact</a>
+          <a href="/" data-nav="home" data-i18n="nav_home">Home</a>
+          <a href="/register.html" data-nav="register" data-i18n="nav_register">Register</a>
+          <a href="/faq.html" data-nav="faq" data-i18n="nav_faq">FAQ</a>
+          <a href="#contact" data-nav="contact" data-i18n="nav_contact">Contact</a>
 
           <div class="site-nav__lang">
             <button class="site-nav__lang-btn" id="langToggle" type="button" aria-haspopup="listbox" aria-expanded="false">
@@ -41,7 +42,7 @@
             </ul>
           </div>
 
-          <a class="site-nav__admin" href="/admin.html" data-nav="admin">Admin</a>
+          <a class="site-nav__admin" href="/admin.html" data-nav="admin" data-i18n="nav_admin">Admin</a>
         </div>
       </div>
     </nav>
@@ -54,13 +55,13 @@
           <span class="site-nav__logo" aria-hidden="true">🌿</span>
           <span>Pou Hono</span>
         </div>
-        <p class="site-footer__org">A Cause Collective &amp; SACTH initiative</p>
+        <p class="site-footer__org" data-i18n="footer_org">A Cause Collective &amp; SACTH initiative</p>
         <ul class="site-footer__contact">
           <li><a href="mailto:sacth@thecausecollective.org.nz">sacth@thecausecollective.org.nz</a></li>
           <li><a href="tel:+6498692433">+64 9 869 2433</a></li>
           <li>15 Earl Richardson Ave, Wiri, Auckland 2104</li>
         </ul>
-        <p class="site-footer__copy">&copy; <span id="footerYear"></span> The Cause Collective &amp; SACTH. Built for NZ Tech Week.</p>
+        <p class="site-footer__copy">&copy; <span id="footerYear"></span> The Cause Collective &amp; SACTH. <span data-i18n="footer_built">Built for NZ Tech Week.</span></p>
       </div>
     </footer>
   `;

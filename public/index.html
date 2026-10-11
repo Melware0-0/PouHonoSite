@@ -187,7 +187,7 @@
 
   .flip-card {
     perspective: 1200px;
-    height: 220px;
+    height: 240px;
     cursor: pointer;
   }
 
@@ -243,6 +243,13 @@
   .flip-card__face--front h3 {
     margin: 0 0 6px;
     font-size: 1.05rem;
+  }
+
+  .flip-card__host {
+    margin: 0 0 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--green-accent);
   }
 
   .flip-card__face--front span {
@@ -375,16 +382,16 @@
 
   <section class="hero">
     <div class="hero__inner reveal is-visible">
-      <span class="hero__eyebrow">NZ Tech Week 2027</span>
-      <h1>A Gateway to a <span>Brighter Future</span> in South Auckland</h1>
-      <p class="lead">SACTH and The Cause Collective invite schools, youth groups, and individuals across South Auckland to a free week of hands-on tech, creativity, and connection.</p>
+      <span class="hero__eyebrow" data-i18n="home_hero_eyebrow">NZ Tech Week 2027</span>
+      <h1 data-i18n-html="home_hero_title">A Gateway to a <span>Brighter Future</span> in South Auckland</h1>
+      <p class="lead" data-i18n="home_hero_lead">SACTH and The Cause Collective invite schools, youth groups, and individuals across South Auckland to a free week of hands-on tech, creativity, and connection.</p>
       <div class="hero__actions">
-        <a class="btn btn--primary" href="/register.html">Register Now</a>
-        <a class="btn btn--outline" href="/faq.html">See the FAQ</a>
+        <a class="btn btn--primary" href="/register.html" data-i18n="home_btn_register">Register Now</a>
+        <a class="btn btn--outline" href="/faq.html" data-i18n="home_btn_faq">See the FAQ</a>
       </div>
       <div class="counter">
         <span class="counter__number" id="liveCount">0</span>
-        <span class="counter__label">classes &amp; individuals<br>registered so far</span>
+        <span class="counter__label" data-i18n-html="home_counter_label">classes &amp; individuals<br>registered so far</span>
       </div>
     </div>
   </section>
@@ -392,36 +399,36 @@
   <div class="prize-banner">
     <div class="prize-banner__inner">
       <span class="prize-banner__badge" aria-hidden="true">🏆</span>
-      <span>$500 prize giveaway — the more classes that sign up, the more chances your school has to win!</span>
+      <span data-i18n="home_prize">$500 prize giveaway — the more classes that sign up, the more chances your school has to win!</span>
     </div>
   </div>
 
   <section class="section">
     <div class="about reveal">
       <div>
-        <span class="hero__eyebrow">About us</span>
-        <h2>What is SACTH?</h2>
-        <p>SACTH — the South Auckland Creative Tech Hub — is a Pacific social change initiative run by The Cause Collective, based at 15 Earl Richardson Avenue, Wiri. We create free, hands-on spaces where South Auckland's young people can explore technology, creativity, and digital skills in an environment built around their culture and community.</p>
-        <p>Pou Hono is our data system for NZ Tech Week 2027 — it's how we know how many classes and young people to expect, and how to keep everyone safe on the day.</p>
-        <p><a href="https://sacth.nz" target="_blank" rel="noopener">Learn more at sacth.nz →</a></p>
+        <span class="hero__eyebrow" data-i18n="home_about_eyebrow">About us</span>
+        <h2 data-i18n="home_about_title">What is SACTH?</h2>
+        <p data-i18n="home_about_p1">SACTH — the South Auckland Creative Tech Hub — is a Pacific social change initiative run by The Cause Collective, based at 15 Earl Richardson Avenue, Wiri. We create free, hands-on spaces where South Auckland's young people can explore technology, creativity, and digital skills in an environment built around their culture and community.</p>
+        <p data-i18n="home_about_p2">Pou Hono is our data system for NZ Tech Week 2027 — it's how we know how many classes and young people to expect, and how to keep everyone safe on the day.</p>
+        <p><a href="https://sacth.nz" target="_blank" rel="noopener" data-i18n="home_about_link">Learn more at sacth.nz →</a></p>
       </div>
       <div class="about__card">
         <div class="about__stats">
           <div class="about__stat">
-            <strong>Free</strong>
-            <span>to every school &amp; individual</span>
+            <strong data-i18n="home_stat_free">Free</strong>
+            <span data-i18n="home_stat_free_label">to every school &amp; individual</span>
           </div>
           <div class="about__stat">
             <strong>5</strong>
-            <span>hands-on sessions</span>
+            <span data-i18n="home_stat_workshops_label">hands-on workshops</span>
           </div>
           <div class="about__stat">
             <strong>Wiri</strong>
-            <span>South Auckland</span>
+            <span data-i18n="home_stat_place_label">South Auckland</span>
           </div>
           <div class="about__stat">
             <strong>$500</strong>
-            <span>school prize giveaway</span>
+            <span data-i18n="home_stat_prize_label">school prize giveaway</span>
           </div>
         </div>
       </div>
@@ -430,71 +437,76 @@
 
   <section class="section sessions" id="sessions">
     <div class="section__head reveal">
-      <h2>Pick your session</h2>
-      <p>Click a card to flip it and see what's inside. Every attendee picks one when they register.</p>
+      <h2 data-i18n="home_sessions_title">Pick your workshop</h2>
+      <p data-i18n="home_sessions_sub">Click a card to flip it and see what's inside. Every attendee picks one when they register.</p>
     </div>
     <div class="flip-grid reveal">
-      <div class="flip-card" tabindex="0" role="button" aria-label="Robotics session, click to flip">
+      <div class="flip-card" tabindex="0" role="button" aria-label="AI Fundamentals Workshop, hosted by Microsoft, click to flip">
+        <div class="flip-card__inner">
+          <div class="flip-card__face flip-card__face--front">
+            <div class="flip-card__icon" aria-hidden="true">🧠</div>
+            <h3>AI Fundamentals Workshop</h3>
+            <p class="flip-card__host"><span data-i18n="home_hosted_by">Hosted by</span> Microsoft</p>
+            <span data-i18n="home_tap_flip">Tap to flip</span>
+          </div>
+          <div class="flip-card__face flip-card__face--back">
+            <p data-i18n="home_ws_ai">Learn what AI really is, how it works, and try building with it yourself.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="flip-card" tabindex="0" role="button" aria-label="Graphic Design Workshop, hosted by The Cause Collective, click to flip">
+        <div class="flip-card__inner">
+          <div class="flip-card__face flip-card__face--front">
+            <div class="flip-card__icon" aria-hidden="true">🎨</div>
+            <h3>Graphic Design Workshop</h3>
+            <p class="flip-card__host"><span data-i18n="home_hosted_by">Hosted by</span> The Cause Collective</p>
+            <span data-i18n="home_tap_flip">Tap to flip</span>
+          </div>
+          <div class="flip-card__face flip-card__face--back">
+            <p data-i18n="home_ws_design">Design posters, logos and graphics — and learn the tools the pros use.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="flip-card" tabindex="0" role="button" aria-label="Build and Battle Robots Workshop, hosted by Robot Rampage, click to flip">
         <div class="flip-card__inner">
           <div class="flip-card__face flip-card__face--front">
             <div class="flip-card__icon" aria-hidden="true">🤖</div>
-            <h3>Robotics</h3>
-            <span>Tap to flip</span>
+            <h3>Build and Battle Robots Workshop</h3>
+            <p class="flip-card__host"><span data-i18n="home_hosted_by">Hosted by</span> Robot Rampage</p>
+            <span data-i18n="home_tap_flip">Tap to flip</span>
           </div>
           <div class="flip-card__face flip-card__face--back">
-            <p>Build robots and circuits — get hands-on with wiring, sensors, and motors.</p>
+            <p data-i18n="home_ws_robots">Build your own robot, then put it in the arena and battle it out.</p>
           </div>
         </div>
       </div>
 
-      <div class="flip-card" tabindex="0" role="button" aria-label="Gaming session, click to flip">
+      <div class="flip-card" tabindex="0" role="button" aria-label="How to Hack a Bank (Ethical Hacking Workshop), hosted by Whitecliffe, click to flip">
         <div class="flip-card__inner">
           <div class="flip-card__face flip-card__face--front">
-            <div class="flip-card__icon" aria-hidden="true">🎮</div>
-            <h3>Gaming</h3>
-            <span>Tap to flip</span>
+            <div class="flip-card__icon" aria-hidden="true">🔐</div>
+            <h3>How to Hack a Bank (Ethical Hacking Workshop)</h3>
+            <p class="flip-card__host"><span data-i18n="home_hosted_by">Hosted by</span> Whitecliffe</p>
+            <span data-i18n="home_tap_flip">Tap to flip</span>
           </div>
           <div class="flip-card__face flip-card__face--back">
-            <p>Esports and game design — compete, create, and see how games are built.</p>
+            <p data-i18n="home_ws_hacking">Think like a hacker to learn how real systems get attacked — and defended.</p>
           </div>
         </div>
       </div>
 
-      <div class="flip-card" tabindex="0" role="button" aria-label="Programming session, click to flip">
+      <div class="flip-card" tabindex="0" role="button" aria-label="DJ'ing Basics Workshop, hosted by Serato, click to flip">
         <div class="flip-card__inner">
           <div class="flip-card__face flip-card__face--front">
-            <div class="flip-card__icon" aria-hidden="true">💻</div>
-            <h3>Programming</h3>
-            <span>Tap to flip</span>
+            <div class="flip-card__icon" aria-hidden="true">🎧</div>
+            <h3>DJ'ing Basics Workshop</h3>
+            <p class="flip-card__host"><span data-i18n="home_hosted_by">Hosted by</span> Serato</p>
+            <span data-i18n="home_tap_flip">Tap to flip</span>
           </div>
           <div class="flip-card__face flip-card__face--back">
-            <p>Code real apps — write actual code and see it come to life on screen.</p>
-          </div>
-        </div>
-      </div>
-
-      <div class="flip-card" tabindex="0" role="button" aria-label="Computer Building session, click to flip">
-        <div class="flip-card__inner">
-          <div class="flip-card__face flip-card__face--front">
-            <div class="flip-card__icon" aria-hidden="true">🛠️</div>
-            <h3>Computer Building</h3>
-            <span>Tap to flip</span>
-          </div>
-          <div class="flip-card__face flip-card__face--back">
-            <p>Hardware and tech — take a computer apart and put it back together.</p>
-          </div>
-        </div>
-      </div>
-
-      <div class="flip-card" tabindex="0" role="button" aria-label="Social Media session, click to flip">
-        <div class="flip-card__inner">
-          <div class="flip-card__face flip-card__face--front">
-            <div class="flip-card__icon" aria-hidden="true">📱</div>
-            <h3>Social Media</h3>
-            <span>Tap to flip</span>
-          </div>
-          <div class="flip-card__face flip-card__face--back">
-            <p>Content creation and digital storytelling — plan, film, and share it right.</p>
+            <p data-i18n="home_ws_dj">Get on the decks — learn beatmatching, mixing, and how to build a set.</p>
           </div>
         </div>
       </div>
@@ -503,8 +515,8 @@
 
   <section class="section gallery">
     <div class="section__head reveal">
-      <h2>From past events</h2>
-      <p>A few moments from previous SACTH events.</p>
+      <h2 data-i18n="home_gallery_title">From past events</h2>
+      <p data-i18n="home_gallery_sub">A few moments from previous SACTH events.</p>
     </div>
     <div class="gallery__grid reveal">
       <button type="button" class="gallery__item"><img src="/images/DSC00092.jpg" alt="Photo from a past SACTH NZ Tech Week event" loading="lazy"></button>
@@ -525,7 +537,7 @@
 
   <section class="section map">
     <div class="section__head reveal">
-      <h2>Find us</h2>
+      <h2 data-i18n="home_map_title">Find us</h2>
       <p>15 Earl Richardson Avenue, Wiri, Auckland 2104</p>
     </div>
     <div class="map__frame reveal">
@@ -542,6 +554,7 @@
 
 <div id="site-footer"></div>
 
+<script src="/translations.js"></script>
 <script src="/nav.js"></script>
 <script>
   // Fade sections in as they scroll into view.

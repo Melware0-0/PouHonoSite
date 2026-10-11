@@ -118,6 +118,19 @@
   }
 
   .panel h2 { font-size: 1.1rem; margin-bottom: 16px; }
+  .panel__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    margin-bottom: 16px;
+  }
+  .panel__head h2 { margin-bottom: 0; }
+  .export-wrap { display: flex; align-items: center; gap: 12px; }
+  .export-status { font-size: 0.85rem; color: var(--text-muted); }
+  .export-status.is-error { color: var(--error); }
+  .btn--small { padding: 8px 16px; font-size: 0.9rem; }
 
   .filters {
     display: flex;
@@ -292,7 +305,7 @@
 <div id="dashboard">
   <div id="site-nav"></div>
 
-  <main class="admin-wrap">
+  <main class="admin-wrap" lang="en">
     <div class="admin-head">
       <h1>Admin Dashboard</h1>
       <span style="color:var(--text-muted); font-size:0.85rem;">
@@ -326,7 +339,13 @@
 
     <div class="layout-grid">
       <div class="panel">
-        <h2>Registrations</h2>
+        <div class="panel__head">
+          <h2>Registrations</h2>
+          <div class="export-wrap">
+            <span class="export-status" id="exportStatus" role="status"></span>
+            <button type="button" class="btn btn--outline btn--small" id="exportPdfBtn">Export PDF</button>
+          </div>
+        </div>
         <!--
           The dropdown that used to sit here offered "All sessions" built
           from registrations.session — but that column holds the name of the
@@ -362,6 +381,7 @@
                 <th>Contact</th>
                 <th>Email</th>
                 <th>Students</th>
+                <th>Year groups</th>
                 <th>Adults</th>
                 <th>Not attending</th>
                 <th>Event day</th>
@@ -371,7 +391,7 @@
               </tr>
             </thead>
             <tbody id="tableBody">
-              <tr class="empty-row"><td colspan="10">Loading…</td></tr>
+              <tr class="empty-row"><td colspan="11">Loading…</td></tr>
             </tbody>
           </table>
         </div>
@@ -393,6 +413,7 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="/event-days.js"></script>
+<script src="/translations.js"></script>
 <script src="/nav.js"></script>
 <script>
   const SESSION_COLORS = ['#2d8c4e', '#1d9e75', '#f2b705', '#e2584c', '#5b8def', '#9a6fd6'];
@@ -450,6 +471,48 @@
     }
     return res;
   }
+
+  // --- Export PDF ---------------------------------------------------------
+  // Fetched (not a plain link) so it goes through adminFetch: an expired
+  // session puts the login box back up instead of "downloading" a JSON
+  // error. The file is then handed to the browser as a normal download,
+  // named by the server (registrations-YYYY-MM-DD.pdf).
+  const exportPdfBtn = document.getElementById('exportPdfBtn');
+  const exportStatus = document.getElementById('exportStatus');
+
+  exportPdfBtn.addEventListener('click', async () => {
+    exportPdfBtn.disabled = true;
+    exportStatus.className = 'export-status';
+    exportStatus.textContent = 'Preparing PDF…';
+    try {
+      const res = await adminFetch('/api/admin/export/pdf');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      const disposition = res.headers.get('Content-Disposition') || '';
+      const match = disposition.match(/filename="([^"]+)"/);
+      const filename = match ? match[1] : 'registrations.pdf';
+
+      const url = URL.createObjectURL(await res.blob());
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      // Give the browser a moment to start the download before freeing it.
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      exportStatus.textContent = '';
+    } catch (err) {
+      if (err.message !== 'not authorised') {
+        exportStatus.textContent = 'Export failed. Please try again.';
+        exportStatus.classList.add('is-error');
+      } else {
+        exportStatus.textContent = '';
+      }
+    } finally {
+      exportPdfBtn.disabled = false;
+    }
+  });
 
   // On load, ask the server whether this browser is already logged in, so
   // that refreshing the page doesn't make the user type the password again.
@@ -546,7 +609,7 @@
    * The four tiles across the top are the headline figures for the WHOLE
    * event and are deliberately NOT filtered. "Total Students" has to keep
    * meaning "everyone coming" even while the admin is looking at just the
-   * Year 6 robotics children underneath it — a headline number that moved
+   * Year 6 robots-workshop children underneath it — a headline number that moved
    * every time somebody typed in the school box would be useless for the
    * thing these tiles are for, which is reporting the size of the event.
    * The filtered counts live where they belong: the table row count, and
@@ -640,8 +703,8 @@
    *   STUDENT-LEVEL  activity, age, year   — properties of one child
    *
    * The client's brief asks for exactly the two combined: "how many
-   * students from Manurewa Primary are interested in doing the robotics
-   * course". "Manurewa Primary" is a property of the class, "Robotics" is a
+   * students from Manurewa Primary are interested in doing the robots
+   * course". "Manurewa Primary" is a property of the class, "Build and Battle Robots Workshop" is a
    * property of the child, and the answer is a count of children. So both
    * lists the page draws are worked out together in one pass:
    *
@@ -659,7 +722,7 @@
    * filtered, and a class that has booked but whose children have not
    * signed up yet must still be listed: it is precisely the class the admin
    * needs to chase. Only once the admin asks a question about children
-   * ("who wants Robotics?") does a class with no matching children stop
+   * ("who wants Graphic Design?") does a class with no matching children stop
    * being part of the answer.
    */
 
@@ -778,6 +841,7 @@
         <td>${escapeHtml(r.contact)}</td>
         <td>${escapeHtml(r.email)}</td>
         <td>${r.students}</td>
+        <td class="wrap-cell">${escapeHtml(r.year_groups || '—')}</td>
         <td>${r.adults}</td>
         <td>${r.not_attending}</td>
         <td>${escapeHtml(shortDay(r.date))}</td>
@@ -814,6 +878,7 @@
         <td><input type="text" class="edit-input" data-field="contact" maxlength="200"></td>
         <td><input type="email" class="edit-input" data-field="email" maxlength="200"></td>
         <td><input type="number" class="edit-input edit-input--num" data-field="students" min="1" max="500"></td>
+        <td class="wrap-cell" title="Set by the teacher when they register">${escapeHtml(r.year_groups || '—')}</td>
         <td><input type="number" class="edit-input edit-input--num" data-field="adults" min="0" max="200"></td>
         <td><input type="number" class="edit-input edit-input--num" data-field="not_attending" min="0"></td>
         <td><input type="date" class="edit-input" data-field="date"></td>
@@ -834,7 +899,7 @@
     const tbody = document.getElementById('tableBody');
 
     if (!registrations.length) {
-      tbody.innerHTML = '<tr class="empty-row"><td colspan="10">No registrations match your filters.</td></tr>';
+      tbody.innerHTML = '<tr class="empty-row"><td colspan="11">No registrations match your filters.</td></tr>';
       return;
     }
 

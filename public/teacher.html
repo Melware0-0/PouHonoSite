@@ -217,6 +217,7 @@
           <li><span class="detail-label" data-i18n="label_fullname">Full name</span><span class="detail-value" id="detailContact">—</span></li>
           <li><span class="detail-label" data-i18n="label_email">Email</span><span class="detail-value" id="detailEmail">—</span></li>
           <li><span class="detail-label" data-i18n="label_students">Number of students</span><span class="detail-value" id="detailStudents">—</span></li>
+          <li><span class="detail-label" data-i18n="label_year_groups_short">Year groups</span><span class="detail-value" id="detailYearGroups">—</span></li>
           <li><span class="detail-label" data-i18n="label_adults">Number of adults</span><span class="detail-value" id="detailAdults">—</span></li>
           <li><span class="detail-label" data-i18n="label_not_attending_short">Students not attending</span><span class="detail-value" id="detailNotAttending">—</span></li>
           <li><span class="detail-label" data-i18n="label_attending_day">Event day</span><span class="detail-value" id="detailDay">—</span></li>
@@ -270,7 +271,7 @@
         <form id="addStudentForm" novalidate>
           <div class="field">
             <label for="a-name" data-i18n="label_student_name">Student name</label>
-            <input type="text" id="a-name" name="name" required>
+            <input type="text" id="a-name" name="name" maxlength="100" required>
           </div>
           <div class="field-row">
             <div class="field">
@@ -286,17 +287,17 @@
           </div>
           <div class="field">
             <label for="a-allergies"><span data-i18n="label_allergies">Allergies / health conditions</span> <span style="color:var(--text-muted); font-weight:400;" data-i18n="label_optional">(optional)</span></label>
-            <textarea id="a-allergies" name="allergies" rows="2"></textarea>
+            <textarea id="a-allergies" name="allergies" maxlength="500" rows="2"></textarea>
           </div>
           <div class="field">
             <label for="a-session" data-i18n="label_preferred_session">Preferred session</label>
             <select id="a-session" name="preferred_session" required>
               <option value="" disabled selected data-i18n="option_select_session">Select a session</option>
-              <option value="Robotics" data-i18n="session_robotics">Robotics</option>
-              <option value="Gaming" data-i18n="session_gaming">Gaming</option>
-              <option value="Programming" data-i18n="session_programming">Programming</option>
-              <option value="Computer Building" data-i18n="session_computer_building">Computer Building</option>
-              <option value="Social Media" data-i18n="session_social_media">Social Media</option>
+              <option value="AI Fundamentals Workshop">AI Fundamentals Workshop — Microsoft</option>
+              <option value="Graphic Design Workshop">Graphic Design Workshop — The Cause Collective</option>
+              <option value="Build and Battle Robots Workshop">Build and Battle Robots Workshop — Robot Rampage</option>
+              <option value="How to Hack a Bank (Ethical Hacking Workshop)">How to Hack a Bank (Ethical Hacking Workshop) — Whitecliffe</option>
+              <option value="DJ'ing Basics Workshop">DJ'ing Basics Workshop — Serato</option>
             </select>
           </div>
           <div id="addMessage" class="message" role="status"></div>
@@ -422,6 +423,8 @@
     document.getElementById('detailContact').textContent = reg.contact;
     document.getElementById('detailEmail').textContent = reg.email;
     document.getElementById('detailStudents').textContent = reg.students;
+    // Empty for classes registered before year groups were asked for.
+    document.getElementById('detailYearGroups').textContent = reg.year_groups || '—';
     document.getElementById('detailAdults').textContent = reg.adults;
     document.getElementById('detailNotAttending').textContent = reg.not_attending;
     document.getElementById('detailDay').textContent = dayLabel(reg.date);
@@ -447,7 +450,8 @@
     const count = document.getElementById('studentCount');
 
     if (!students.length) {
-      tbody.innerHTML = '<tr class="empty-row"><td colspan="6">No students have signed up yet.</td></tr>';
+      tbody.innerHTML = '<tr class="empty-row"><td colspan="6" data-i18n="portal_no_students"></td></tr>';
+      tbody.querySelector('td').textContent = i18nText('portal_no_students');
       count.textContent = '';
       return;
     }
@@ -464,7 +468,7 @@
         <td>${s.age === null || s.age === undefined ? '—' : s.age}</td>
         <td class="wrap-cell">${escapeHtml(s.allergies || '—')}</td>
         <td>${escapeHtml(s.preferred_session)}</td>
-        <td><button type="button" class="remove-btn" data-id="${s.id}">Remove</button></td>
+        <td><button type="button" class="remove-btn" data-id="${s.id}" data-i18n="btn_remove">${escapeHtml(i18nText('btn_remove'))}</button></td>
       </tr>
     `).join('');
 
@@ -508,7 +512,7 @@
       await navigator.clipboard.writeText(input.value);
       const btn = document.getElementById('copyLinkBtn');
       const original = btn.textContent;
-      btn.textContent = 'Copied!';
+      btn.textContent = i18nText('msg_copied');
       setTimeout(() => { btn.textContent = original; }, 1500);
     } catch (err) {
       // Clipboard permission denied — the text is still selected for manual copy.
@@ -549,7 +553,7 @@
 
       if (res.ok) {
         form.reset();
-        msg.textContent = `${responseData.name} added.`;
+        msg.textContent = i18nText('manual_added', { name: responseData.name });
         msg.classList.add('show', 'message--success');
         loadStudents();
       } else {

@@ -165,6 +165,13 @@
   .radio-row input { width: auto; margin: 0; }
   .radio-row label { font-weight: 500; margin: 0; }
 
+  /* Year-group checkboxes: a compact grid rather than 14 stacked rows. */
+  .year-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+    gap: 8px 12px;
+  }
+
   .field-error {
     display: none;
     color: var(--error);
@@ -308,15 +315,15 @@
         <form id="teacherForm" novalidate>
           <div class="field">
             <label for="t-contact" data-i18n="label_fullname">Full name</label>
-            <input type="text" id="t-contact" name="contact" required placeholder="e.g. J. Fale">
+            <input type="text" id="t-contact" name="contact" maxlength="100" required placeholder="e.g. J. Fale">
           </div>
           <div class="field">
             <label for="t-email" data-i18n="label_email">Email</label>
-            <input type="email" id="t-email" name="email" required placeholder="you@school.school.nz">
+            <input type="email" id="t-email" name="email" maxlength="254" required placeholder="you@school.school.nz">
           </div>
           <div class="field">
             <label for="t-school" data-i18n="label_school">School name</label>
-            <input type="text" id="t-school" name="school" required placeholder="Search your school..." data-i18n-placeholder="placeholder_school">
+            <input type="text" id="t-school" name="school" maxlength="150" required placeholder="Search your school..." data-i18n-placeholder="placeholder_school">
           </div>
           <div class="field-row">
             <div class="field">
@@ -327,6 +334,12 @@
               <label for="t-adults" data-i18n="label_adults">Number of adults</label>
               <input type="number" id="t-adults" name="adults" min="0" max="200" value="0">
             </div>
+          </div>
+          <div class="field">
+            <label id="yearGroupsLabel" data-i18n="label_year_groups">Which year groups are coming?</label>
+            <!-- Built from the same Year 1–13 + 18+ list as the student forms. -->
+            <div class="year-grid" id="yearGroupChoices" role="group" aria-labelledby="yearGroupsLabel"></div>
+            <p class="field-error" id="yearGroupsError" data-i18n="error_pick_year_groups">Please choose at least one year group.</p>
           </div>
           <div class="field">
             <label data-i18n="label_all_attending">Will all your students be attending?</label>
@@ -433,7 +446,7 @@
           <form id="manualStudentForm" novalidate>
             <div class="field">
               <label for="m-name" data-i18n="label_student_name">Student name</label>
-              <input type="text" id="m-name" name="name" required>
+              <input type="text" id="m-name" name="name" maxlength="100" required>
             </div>
             <div class="field-row">
               <div class="field">
@@ -449,17 +462,17 @@
             </div>
             <div class="field">
               <label for="m-allergies"><span data-i18n="label_allergies">Allergies / health conditions</span> <span style="color:var(--text-muted); font-weight:400;" data-i18n="label_optional">(optional)</span></label>
-              <textarea id="m-allergies" name="allergies" rows="2"></textarea>
+              <textarea id="m-allergies" name="allergies" maxlength="500" rows="2"></textarea>
             </div>
             <div class="field">
               <label for="m-session" data-i18n="label_preferred_session">Preferred session</label>
               <select id="m-session" name="preferred_session" required>
                 <option value="" disabled selected data-i18n="option_select_session">Select a session</option>
-                <option value="Robotics" data-i18n="session_robotics">Robotics</option>
-                <option value="Gaming" data-i18n="session_gaming">Gaming</option>
-                <option value="Programming" data-i18n="session_programming">Programming</option>
-                <option value="Computer Building" data-i18n="session_computer_building">Computer Building</option>
-                <option value="Social Media" data-i18n="session_social_media">Social Media</option>
+                <option value="AI Fundamentals Workshop">AI Fundamentals Workshop — Microsoft</option>
+                <option value="Graphic Design Workshop">Graphic Design Workshop — The Cause Collective</option>
+                <option value="Build and Battle Robots Workshop">Build and Battle Robots Workshop — Robot Rampage</option>
+                <option value="How to Hack a Bank (Ethical Hacking Workshop)">How to Hack a Bank (Ethical Hacking Workshop) — Whitecliffe</option>
+                <option value="DJ'ing Basics Workshop">DJ'ing Basics Workshop — Serato</option>
               </select>
             </div>
             <div id="manualMessage" class="message" role="status"></div>
@@ -515,6 +528,27 @@
     dayChoices.appendChild(row);
   });
 
+  // Year groups the class covers — a checkbox each, since one class or
+  // youth group often spans several.
+  const yearGroupChoices = document.getElementById('yearGroupChoices');
+  [...Array.from({ length: 13 }, (_, i) => `Year ${i + 1}`), '18+'].forEach((year, i) => {
+    const row = document.createElement('div');
+    row.className = 'radio-row';
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.id = `t-year-${i}`;
+    input.name = 'year_groups';
+    input.value = year;
+    const label = document.createElement('label');
+    label.htmlFor = input.id;
+    label.textContent = year;
+    row.append(input, label);
+    yearGroupChoices.appendChild(row);
+  });
+  yearGroupChoices.addEventListener('change', () => {
+    document.getElementById('yearGroupsError').classList.remove('show');
+  });
+
   // "Will all your students be attending?" — answering No reveals the
   // follow-up number box. The box is not just disabled but hidden, so a
   // teacher whose whole class is coming never has to think about it.
@@ -546,14 +580,15 @@
 
   // --- Path choice ---
   document.getElementById('choose-teacher').addEventListener('click', () => showPanel('t1'));
+  // preventDefault so Space picks the card instead of also scrolling the page.
   document.getElementById('choose-teacher').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') showPanel('t1');
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); showPanel('t1'); }
   });
   document.getElementById('choose-individual').addEventListener('click', () => {
     window.location.href = '/student.html';
   });
   document.getElementById('choose-individual').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') window.location.href = '/student.html';
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); window.location.href = '/student.html'; }
   });
 
   // --- Teacher step 1 ---
@@ -570,6 +605,17 @@
     }
 
     const data = new FormData(form);
+
+    // Like the day below, "at least one checkbox" has no built-in browser
+    // message, so it is checked here.
+    const yearGroups = data.getAll('year_groups');
+    const yearGroupsError = document.getElementById('yearGroupsError');
+    if (!yearGroups.length) {
+      yearGroupsError.classList.add('show');
+      yearGroupChoices.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    yearGroupsError.classList.remove('show');
 
     // The day is a required choice, but a group of radio buttons has no
     // browser-built "you must pick one" message the way a required text
@@ -588,6 +634,7 @@
       email: data.get('email'),
       school: data.get('school'),
       students: Number(data.get('students')),
+      year_groups: yearGroups,
       adults: Number(data.get('adults') || 0),
       // 0 whenever the answer was "yes, all of them are coming".
       not_attending: data.get('all_attending') === 'no'
@@ -616,7 +663,7 @@
     const msg = document.getElementById('teacherSubmitMessage');
     msg.className = 'message';
     submitBtn.disabled = true;
-    submitBtn.textContent = 'Registering…';
+    submitBtn.textContent = i18nText('btn_registering');
 
     // `date` comes from teacherDetails — the day the teacher picked in
     // step 1. It used to be today's date, which recorded when someone
@@ -666,7 +713,7 @@
       msg.classList.add('show', 'message--error');
       submitBtn.disabled = false;
     } finally {
-      submitBtn.textContent = 'Accept & Register';
+      submitBtn.textContent = i18nText('btn_accept_register');
     }
   });
 
@@ -681,7 +728,7 @@
       try {
         await navigator.clipboard.writeText(input.value);
         const original = btn.textContent;
-        btn.textContent = 'Copied!';
+        btn.textContent = i18nText('msg_copied');
         setTimeout(() => { btn.textContent = original; }, 1500);
       } catch (err) {
         // Clipboard permission denied — the text is still selected for manual copy.
@@ -697,7 +744,11 @@
   manualToggleBtn.addEventListener('click', () => {
     const showing = manualSection.style.display !== 'none';
     manualSection.style.display = showing ? 'none' : 'block';
-    manualToggleBtn.textContent = showing ? 'Register students manually instead' : 'Hide manual form';
+    // Swap the data-i18n key as well as the text, so a language change
+    // afterwards keeps the button saying the right thing.
+    const key = showing ? 'btn_manual_toggle' : 'btn_hide_manual';
+    manualToggleBtn.setAttribute('data-i18n', key);
+    manualToggleBtn.textContent = i18nText(key);
   });
 
   const addedStudents = [];
@@ -755,7 +806,7 @@
         addedStudents.push(responseData);
         renderManualList();
         form.reset();
-        msg.textContent = `${responseData.name} added.`;
+        msg.textContent = i18nText('manual_added', { name: responseData.name });
         msg.classList.add('show', 'message--success');
       } else {
         const errors = (responseData.errors && responseData.errors.join(' ')) || 'Something went wrong.';

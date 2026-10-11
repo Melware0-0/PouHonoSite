@@ -14,6 +14,14 @@
  * student_*_individual strings the student page shows to someone signing
  * up on their own. Every one of them is unreviewed AI output in mi/sm/to
  * and needs the same check.
+ *
+ * Same for the shared nav/footer strings (nav_*, footer_*), every home
+ * page string (home_*), and the messages page scripts show through
+ * i18nText(): unreviewed AI output in mi/sm/to, needing the same check.
+ *
+ * The five workshop names (and their host organisations) are deliberately
+ * NOT in here: they are the hosts' official titles, so they stay in
+ * English on every language.
  */
 const TRANSLATIONS = {
   en: {
@@ -50,11 +58,6 @@ const TRANSLATIONS = {
     label_optional: "(optional)",
     label_preferred_session: "Preferred session",
     option_select_session: "Select a session",
-    session_robotics: "Robotics",
-    session_gaming: "Gaming",
-    session_programming: "Programming",
-    session_computer_building: "Computer Building",
-    session_social_media: "Social Media",
     btn_add_student: "Add student",
     btn_done_home: "Done — back to Home",
     invalid_title: "Link not found",
@@ -67,7 +70,6 @@ const TRANSLATIONS = {
     label_your_name: "Your name",
     btn_submit_registration: "Submit registration",
     success_title: "You're all set!",
-    btn_register_another: "Register another student",
 
     // --- Teacher portal (teacher.html) + the two links on step 3 ---
     step3_student_link_title: "1. Student link — give this to your students",
@@ -97,7 +99,63 @@ const TRANSLATIONS = {
     option_yes: "Yes",
     option_no: "No",
     label_not_attending: "How many are not attending?",
-    label_not_attending_short: "Students not attending"
+    label_not_attending_short: "Students not attending",
+
+    // --- Which year groups is the class bringing? (teacher form) ---
+    label_year_groups: "Which year groups are coming?",
+    error_pick_year_groups: "Please choose at least one year group.",
+    label_year_groups_short: "Year groups",
+
+    // --- Shared nav + footer (nav.js), on every page ---
+    nav_brand: "NZ Tech Week — SACTH",
+    nav_home: "Home",
+    nav_register: "Register",
+    nav_faq: "FAQ",
+    nav_contact: "Contact",
+    nav_admin: "Admin",
+    footer_org: "A Cause Collective & SACTH initiative",
+    footer_built: "Built for NZ Tech Week.",
+
+    // --- Home page (index.html) ---
+    home_hero_eyebrow: "NZ Tech Week 2027",
+    home_hero_title: "A Gateway to a <span>Brighter Future</span> in South Auckland",
+    home_hero_lead: "SACTH and The Cause Collective invite schools, youth groups, and individuals across South Auckland to a free week of hands-on tech, creativity, and connection.",
+    home_btn_register: "Register Now",
+    home_btn_faq: "See the FAQ",
+    home_counter_label: "classes &amp; individuals<br>registered so far",
+    home_prize: "$500 prize giveaway — the more classes that sign up, the more chances your school has to win!",
+    home_about_eyebrow: "About us",
+    home_about_title: "What is SACTH?",
+    home_about_p1: "SACTH — the South Auckland Creative Tech Hub — is a Pacific social change initiative run by The Cause Collective, based at 15 Earl Richardson Avenue, Wiri. We create free, hands-on spaces where South Auckland's young people can explore technology, creativity, and digital skills in an environment built around their culture and community.",
+    home_about_p2: "Pou Hono is our data system for NZ Tech Week 2027 — it's how we know how many classes and young people to expect, and how to keep everyone safe on the day.",
+    home_about_link: "Learn more at sacth.nz →",
+    home_stat_free: "Free",
+    home_stat_free_label: "to every school & individual",
+    home_stat_workshops_label: "hands-on workshops",
+    home_stat_place_label: "South Auckland",
+    home_stat_prize_label: "school prize giveaway",
+    home_sessions_title: "Pick your workshop",
+    home_sessions_sub: "Click a card to flip it and see what's inside. Every attendee picks one when they register.",
+    home_tap_flip: "Tap to flip",
+    home_hosted_by: "Hosted by",
+    home_ws_ai: "Learn what AI really is, how it works, and try building with it yourself.",
+    home_ws_design: "Design posters, logos and graphics — and learn the tools the pros use.",
+    home_ws_robots: "Build your own robot, then put it in the arena and battle it out.",
+    home_ws_hacking: "Think like a hacker to learn how real systems get attacked — and defended.",
+    home_ws_dj: "Get on the decks — learn beatmatching, mixing, and how to build a set.",
+    home_gallery_title: "From past events",
+    home_gallery_sub: "A few moments from previous SACTH events.",
+    home_map_title: "Find us",
+
+    // --- Messages set from page scripts (via i18nText) ---
+    btn_hide_manual: "Hide manual form",
+    msg_copied: "Copied!",
+    btn_registering: "Registering…",
+    btn_submitting: "Submitting…",
+    error_pick_session: "Please pick a workshop.",
+    student_success: "Thanks, {name} — you're registered for {session}. See you at NZ Tech Week 2027!",
+    portal_no_students: "No students have signed up yet.",
+    manual_added: "{name} added."
   },
 
   mi: {
@@ -134,11 +192,6 @@ const TRANSLATIONS = {
     label_optional: "(kaupapa ā-kōwhiri)",
     label_preferred_session: "Wāhanga e hiahiatia ana",
     option_select_session: "Kōwhiria he wāhanga",
-    session_robotics: "Karetao",
-    session_gaming: "Tākaro Rorohiko",
-    session_programming: "Hōtaka Rorohiko",
-    session_computer_building: "Hanga Rorohiko",
-    session_social_media: "Pāpāho Pāpori",
     btn_add_student: "Tāpiri ākonga",
     btn_done_home: "Kua oti — hoki ki te Kāinga",
     invalid_title: "Kāore i kitea te hono",
@@ -151,7 +204,6 @@ const TRANSLATIONS = {
     label_your_name: "Tō ingoa",
     btn_submit_registration: "Tukuna te rēhitatanga",
     success_title: "Kua rite koe!",
-    btn_register_another: "Rēhita anō he ākonga",
 
     // --- Teacher portal (teacher.html) + the two links on step 3 ---
     step3_student_link_title: "1. Hono ākonga — hoatu tēnei ki āu ākonga",
@@ -181,7 +233,63 @@ const TRANSLATIONS = {
     option_yes: "Āe",
     option_no: "Kāo",
     label_not_attending: "Tokohia kāore e tae mai?",
-    label_not_attending_short: "Ākonga kāore e tae mai"
+    label_not_attending_short: "Ākonga kāore e tae mai",
+
+    // --- Which year groups is the class bringing? (teacher form) ---
+    label_year_groups: "Ko ēhea tau ka tae mai?",
+    error_pick_year_groups: "Kōwhiria kia kotahi te tau i te iti rawa.",
+    label_year_groups_short: "Ngā tau",
+
+    // --- Shared nav + footer (nav.js), on every page ---
+    nav_brand: "Te Wiki Hangarau o Aotearoa — SACTH",
+    nav_home: "Kāinga",
+    nav_register: "Rēhita",
+    nav_faq: "Ngā Pātai",
+    nav_contact: "Whakapā mai",
+    nav_admin: "Kaiwhakahaere",
+    footer_org: "He kaupapa nā The Cause Collective me SACTH",
+    footer_built: "I hangaia mō te Wiki Hangarau o Aotearoa.",
+
+    // --- Home page (index.html) ---
+    home_hero_eyebrow: "Te Wiki Hangarau o Aotearoa 2027",
+    home_hero_title: "He Kūaha ki tētahi <span>Āpōpō Mārama Ake</span> i Tāmaki Makaurau ki te Tonga",
+    home_hero_lead: "Ka pōwhiri a SACTH me The Cause Collective i ngā kura, ngā rōpū rangatahi, me ngā tāngata takitahi puta noa i Tāmaki Makaurau ki te Tonga ki tētahi wiki kore utu o te hangarau ā-ringa, te auahatanga, me te whakawhanaungatanga.",
+    home_btn_register: "Rēhita Ināianei",
+    home_btn_faq: "Tirohia ngā Pātai",
+    home_counter_label: "ngā akomanga me ngā tāngata takitahi<br>kua rēhita kē",
+    home_prize: "He taonga $500 — ko te nui ake o ngā akomanga ka rēhita, ko te nui ake o te tūponotanga ka toa tō kura!",
+    home_about_eyebrow: "Mō mātou",
+    home_about_title: "He aha a SACTH?",
+    home_about_p1: "Ko SACTH — te South Auckland Creative Tech Hub — he kaupapa panoni pāpori o te Moana-nui-a-Kiwa e whakahaerehia ana e The Cause Collective, kei 15 Earl Richardson Avenue, Wiri. Ka waihanga mātou i ngā wāhi kore utu, ā-ringa hoki e taea ai e ngā rangatahi o Tāmaki Makaurau ki te Tonga te tūhura i te hangarau, te auahatanga, me ngā pūkenga matihiko i tētahi taiao e hāngai ana ki ō rātou ahurea me tō rātou hapori.",
+    home_about_p2: "Ko Pou Hono tō mātou pūnaha raraunga mō te Wiki Hangarau o Aotearoa 2027 — mā konei mātou e mōhio ai e hia ngā akomanga me ngā rangatahi ka tae mai, me pēhea te tiaki i te haumaru o te katoa i te rā.",
+    home_about_link: "Ako atu anō ki sacth.nz →",
+    home_stat_free: "Kore utu",
+    home_stat_free_label: "mō ia kura, mō ia tangata",
+    home_stat_workshops_label: "awheawhe ā-ringa",
+    home_stat_place_label: "Tāmaki Makaurau ki te Tonga",
+    home_stat_prize_label: "taonga mō te kura",
+    home_sessions_title: "Kōwhiria tō awheawhe",
+    home_sessions_sub: "Pāwhiria tētahi kāri kia huri, kia kite ai i ōna kōrero. Ka kōwhiri ia tangata i tētahi i te wā e rēhita ana.",
+    home_tap_flip: "Pāwhiria kia huri",
+    home_hosted_by: "Nā",
+    home_ws_ai: "Akohia he aha tonu te AI, me pēhea tōna mahi, ā, whakamātauria te hanga mea ki a ia.",
+    home_ws_design: "Hoahoatia ngā pānui, ngā waitohu me ngā whakairoiro — ā, akohia ngā utauta e whakamahia ana e te hunga ngaio.",
+    home_ws_robots: "Hangaia tō ake karetao, kātahi ka tukuna ki te papa whawhai kia whawhai.",
+    home_ws_hacking: "Whakaarohia me he kaiwhati kia mōhio ai me pēhea e whakaekehia ai ngā pūnaha tūturu — me te tiaki i a rātou.",
+    home_ws_dj: "Eke ki ngā papa DJ — akohia te whakahāngai pao, te whakaranu, me te hanga i tētahi huinga waiata.",
+    home_gallery_title: "Mai i ngā huihuinga o mua",
+    home_gallery_sub: "Ētahi wā mai i ngā huihuinga SACTH o mua.",
+    home_map_title: "Kimihia mātou",
+
+    // --- Messages set from page scripts (via i18nText) ---
+    btn_hide_manual: "Hunaia te puka ā-ringa",
+    msg_copied: "Kua tāruatia!",
+    btn_registering: "E rēhita ana…",
+    btn_submitting: "E tuku ana…",
+    error_pick_session: "Kōwhiria he awheawhe.",
+    student_success: "Kia ora, {name} — kua rēhitatia koe mō {session}. Ka kite i te Wiki Hangarau o Aotearoa 2027!",
+    portal_no_students: "Kāore anō he ākonga kia rēhita.",
+    manual_added: "Kua tāpiritia a {name}."
   },
 
   sm: {
@@ -218,11 +326,6 @@ const TRANSLATIONS = {
     label_optional: "(le manaʻomia)",
     label_preferred_session: "Vasega e sili ona manaʻomia",
     option_select_session: "Filifili se vasega",
-    session_robotics: "Robotics",
-    session_gaming: "Taʻaloga Komepiuta",
-    session_programming: "Polokalame Komepiuta",
-    session_computer_building: "Fausia Komepiuta",
-    session_social_media: "Media Faʻaagafesootai",
     btn_add_student: "Faʻaopoopo tamaititi aʻoga",
     btn_done_home: "Ua uma — toe foʻi i le Aai",
     invalid_title: "E lei maua le soʻoga",
@@ -235,7 +338,6 @@ const TRANSLATIONS = {
     label_your_name: "Lou igoa",
     btn_submit_registration: "Tuuina atu le lesitala",
     success_title: "Ua uma ona saunia oe!",
-    btn_register_another: "Toe lesitala se isi tamaititi aʻoga",
 
     // --- Teacher portal (teacher.html) + the two links on step 3 ---
     step3_student_link_title: "1. Soʻoga a tamaiti aʻoga — tuu lenei i au tamaiti aʻoga",
@@ -265,7 +367,63 @@ const TRANSLATIONS = {
     option_yes: "Ioe",
     option_no: "Leai",
     label_not_attending: "E toʻafia e le auai?",
-    label_not_attending_short: "Tamaiti aʻoga e le auai"
+    label_not_attending_short: "Tamaiti aʻoga e le auai",
+
+    // --- Which year groups is the class bringing? (teacher form) ---
+    label_year_groups: "O ā vasega tausaga o le a ō mai?",
+    error_pick_year_groups: "Faʻamolemole filifili se tasi vasega tausaga.",
+    label_year_groups_short: "Vasega tausaga",
+
+    // --- Shared nav + footer (nav.js), on every page ---
+    nav_brand: "Vaiaso o Tekonolosi o Niu Sila — SACTH",
+    nav_home: "Itulau Muamua",
+    nav_register: "Lesitala",
+    nav_faq: "Fesili",
+    nav_contact: "Faʻafesoʻotaʻi",
+    nav_admin: "Pulega",
+    footer_org: "O se fuafuaga a The Cause Collective ma SACTH",
+    footer_built: "Na fausia mo le Vaiaso o Tekonolosi o Niu Sila.",
+
+    // --- Home page (index.html) ---
+    home_hero_eyebrow: "Vaiaso o Tekonolosi o Niu Sila 2027",
+    home_hero_title: "O se Faitotoʻa i se <span>Lumanaʻi Susulu</span> i Aukilani i Saute",
+    home_hero_lead: "O loʻo valaʻaulia e SACTH ma The Cause Collective aʻoga, vaega o tupulaga, ma tagata taʻitoʻatasi i Aukilani i Saute i se vaiaso fua o tekonolosi faʻatino, foafoaga, ma fesoʻotaʻiga.",
+    home_btn_register: "Lesitala Nei",
+    home_btn_faq: "Vaai i Fesili",
+    home_counter_label: "vasega ma tagata taʻitoʻatasi<br>ua lesitala i le taimi nei",
+    home_prize: "Faʻailoga $500 — o le tele o vasega e lesitala, o le tele foi lea o avanoa e manumalo ai lau aʻoga!",
+    home_about_eyebrow: "E uiga ia i matou",
+    home_about_title: "O le ā le SACTH?",
+    home_about_p1: "O SACTH — le South Auckland Creative Tech Hub — o se fuafuaga a le Pasefika mo suiga faʻaagafesootai e faʻatautaia e The Cause Collective, e tu i le 15 Earl Richardson Avenue, Wiri. Matou te faia ni nofoaga fua ma faʻatino e mafai ai e tupulaga talavou o Aukilani i Saute ona suʻesuʻe tekonolosi, foafoaga, ma tomai faʻatekinolosi i se siʻosiʻomaga e faʻavae i lo latou aganuʻu ma lo latou nuʻu.",
+    home_about_p2: "O Pou Hono lo matou faiga faʻamaumauga mo le Vaiaso o Tekonolosi o Niu Sila 2027 — o le auala lea matou te iloa ai le tele o vasega ma tupulaga e o mai, ma le auala e tausi saogalemu ai tagata uma i lea aso.",
+    home_about_link: "Aʻoaʻo atili i sacth.nz →",
+    home_stat_free: "Fua",
+    home_stat_free_label: "mo aʻoga uma ma tagata taʻitoʻatasi",
+    home_stat_workshops_label: "aʻoaʻoga faʻatino",
+    home_stat_place_label: "Aukilani i Saute",
+    home_stat_prize_label: "faʻailoga mo aʻoga",
+    home_sessions_title: "Filifili lau aʻoaʻoga",
+    home_sessions_sub: "Kiliki i se kata e liliu ai ma vaai i mea o i totonu. E filifili e tagata uma se tasi pe a lesitala.",
+    home_tap_flip: "Tata e liliu",
+    home_hosted_by: "Talimalo e",
+    home_ws_ai: "Aʻoaʻo po o le ā tonu le AI, pe faʻapefea ona galue, ma taumafai e fau ai mea e oe lava.",
+    home_ws_design: "Mamanu pepa faʻasalalau, logo ma ata — ma aʻoaʻo meafaigaluega e faʻaaogā e tagata atamamai.",
+    home_ws_robots: "Fau lau lava robot, ona tuu lea i le malae ma tauva.",
+    home_ws_hacking: "Mafaufau e pei o se hacker e aʻoaʻo ai le auala e osofaʻia ai faiga moni — ma puipuia ai.",
+    home_ws_dj: "Alu i luga o masini DJ — aʻoaʻo le faʻafetaui o pao, faʻafefiloi, ma le fausia o se seti.",
+    home_gallery_title: "Mai i mea na tutupu muamua",
+    home_gallery_sub: "Nai taimi mai i mea na faia muamua e SACTH.",
+    home_map_title: "Saili mai i matou",
+
+    // --- Messages set from page scripts (via i18nText) ---
+    btn_hide_manual: "Natia le pepa",
+    msg_copied: "Ua kopi!",
+    btn_registering: "O lesitala…",
+    btn_submitting: "O tuʻuina atu…",
+    error_pick_session: "Faʻamolemole filifili se aʻoaʻoga.",
+    student_success: "Faʻafetai, {name} — ua lesitala oe mo {session}. Feiloaʻi i le Vaiaso o Tekonolosi o Niu Sila 2027!",
+    portal_no_students: "E leʻi lesitala se tamaitiiti aʻoga.",
+    manual_added: "Ua faʻaopoopo {name}."
   },
 
   to: {
@@ -302,11 +460,6 @@ const TRANSLATIONS = {
     label_optional: "(ʻikai fiemaʻu)",
     label_preferred_session: "Vahenga ʻoku sai taha",
     option_select_session: "Fili ha vahenga",
-    session_robotics: "Robotics",
-    session_gaming: "Meʻa Fakavaʻa",
-    session_programming: "Palokalame Komipiuta",
-    session_computer_building: "Langa Komipiuta",
-    session_social_media: "Ngaahi Fetuʻutaki Fakasōsiale",
     btn_add_student: "Tānaki akonga",
     btn_done_home: "Kuo ʻosi — foki ki ʻApi",
     invalid_title: "Naʻe ʻikai ʻilo ʻa e fononga",
@@ -319,7 +472,6 @@ const TRANSLATIONS = {
     label_your_name: "Ho hingoa",
     btn_submit_registration: "Tuku atu ʻa e lesisita",
     success_title: "Kuo mateuteu koe!",
-    btn_register_another: "Toe lesisita ha akonga",
 
     // --- Teacher portal (teacher.html) + the two links on step 3 ---
     step3_student_link_title: "1. Fononga ki he kau ako — ʻoange ʻeni ki hoʻo kau ako",
@@ -349,22 +501,122 @@ const TRANSLATIONS = {
     option_yes: "ʻIo",
     option_no: "ʻIkai",
     label_not_attending: "ʻE toko fiha ʻe ʻikai kau mai?",
-    label_not_attending_short: "Kau ako ʻe ʻikai kau mai"
+    label_not_attending_short: "Kau ako ʻe ʻikai kau mai",
+
+    // --- Which year groups is the class bringing? (teacher form) ---
+    label_year_groups: "Ko e ngaahi kalasi taʻu fē ʻe haʻu?",
+    error_pick_year_groups: "Kātaki ʻo fili ha kalasi taʻu ʻe taha pe lahi ange.",
+    label_year_groups_short: "Ngaahi kalasi taʻu",
+
+    // --- Shared nav + footer (nav.js), on every page ---
+    nav_brand: "Uike Fakatekinolosia ʻo Nuʻusila — SACTH",
+    nav_home: "Peesi ʻUluaki",
+    nav_register: "Lesisita",
+    nav_faq: "Ngaahi Fehuʻi",
+    nav_contact: "Fetuʻutaki",
+    nav_admin: "Pule",
+    footer_org: "Ko ha fakakaukau ʻa The Cause Collective mo SACTH",
+    footer_built: "Naʻe langa ki he Uike Fakatekinolosia ʻo Nuʻusila.",
+
+    // --- Home page (index.html) ---
+    home_hero_eyebrow: "Uike Fakatekinolosia ʻo Nuʻusila 2027",
+    home_hero_title: "Ko ha Matapā ki ha <span>Kahaʻu Ngingila Ange</span> ʻi ʻAokalani Tonga",
+    home_hero_lead: "ʻOku fakaafeʻi ʻe SACTH mo The Cause Collective ʻa e ngaahi ako, kulupu toʻu tupu, mo e kakai fakafoʻituitui ʻi ʻAokalani Tonga ki ha uike taʻetotongi ʻo e tekinolosia ngāue fakanima, fakakaukau foʻou, mo e fengāueʻaki.",
+    home_btn_register: "Lesisita Leva",
+    home_btn_faq: "Sio ki he Ngaahi Fehuʻi",
+    home_counter_label: "ngaahi kalasi mo e kakai fakafoʻituitui<br>kuo lesisita ki he taimí ni",
+    home_prize: "Pale $500 — ko e lahi ange ʻa e ngaahi kalasi ʻoku lesisita, ko e lahi ange ia ʻa e faingamālie ke ikuna ai ho ako!",
+    home_about_eyebrow: "Fekauʻaki mo kimautolu",
+    home_about_title: "Ko e hā ʻa e SACTH?",
+    home_about_p1: "Ko e SACTH — ko e South Auckland Creative Tech Hub — ko ha fakakaukau liliu fakasōsiale ʻa e Pasifiki ʻoku fakalele ʻe The Cause Collective, ʻoku tuʻu ʻi he 15 Earl Richardson Avenue, Wiri. ʻOku mau faʻu ha ngaahi feituʻu taʻetotongi mo ngāue fakanima ke lava ai ʻe he toʻu tupu ʻo ʻAokalani Tonga ʻo vakaiʻi ʻa e tekinolosia, fakakaukau foʻou, mo e ngaahi taukei fakatekinolosia ʻi ha ʻātakai ʻoku langa takai ʻi honau anga fakafonua mo e komiunitī.",
+    home_about_p2: "Ko Pou Hono ko ʻemau founga tauhi fakamatala ki he Uike Fakatekinolosia ʻo Nuʻusila 2027 — ko e founga ia ʻoku mau ʻilo ai pe ko e kalasi mo e toʻu tupu ʻe fiha ʻe haʻu, mo e founga ke malu ai ʻa e tokotaha kotoa ʻi he ʻaho ko iá.",
+    home_about_link: "Ako lahi ange ʻi he sacth.nz →",
+    home_stat_free: "Taʻetotongi",
+    home_stat_free_label: "ki he ako mo e tokotaha kotoa",
+    home_stat_workshops_label: "ngaahi ako ngāue fakanima",
+    home_stat_place_label: "ʻAokalani Tonga",
+    home_stat_prize_label: "pale ki he ako",
+    home_sessions_title: "Fili hoʻo ako ngāue",
+    home_sessions_sub: "Lomiʻi ha kaati ke fulihi ʻo sio ki he meʻa ʻoku ʻi lotó. ʻOku fili ʻe he tokotaha kotoa ha taha ʻi heʻenau lesisita.",
+    home_tap_flip: "Lomiʻi ke fulihi",
+    home_hosted_by: "Talitali ʻe",
+    home_ws_ai: "Ako pe ko e hā tonu ʻa e AI, founga ʻene ngāue, pea feinga ke ke langa ʻaki ia.",
+    home_ws_design: "Fakatātā ha ngaahi pousitā, lako mo e ngaahi tā — pea ako ʻa e ngaahi meʻangāue ʻoku ngāueʻaki ʻe he kau poto.",
+    home_ws_robots: "Langa hoʻo lōpoti ʻaʻau, pea tuku ia ki he malaʻe ke fetauʻaki.",
+    home_ws_hacking: "Fakakaukau hangē ha hacker ke ako pe ʻoku ʻohofi fēfē ʻa e ngaahi founga moʻoni — pea maluʻi.",
+    home_ws_dj: "Hū ki he ngaahi misini DJ — ako ʻa e fakatatau ʻo e tā, fakafio, mo e langa ha seti.",
+    home_gallery_title: "Mei he ngaahi meʻa kuo hili",
+    home_gallery_sub: "Ko ha ngaahi taimi mei he ngaahi meʻa kimuʻa ʻa SACTH.",
+    home_map_title: "Kumi kimautolu",
+
+    // --- Messages set from page scripts (via i18nText) ---
+    btn_hide_manual: "Fufuuʻi e foomu",
+    msg_copied: "Kuo hiki!",
+    btn_registering: "ʻOku lesisita…",
+    btn_submitting: "ʻOku fakahū…",
+    error_pick_session: "Kātaki ʻo fili ha ako ngāue.",
+    student_success: "Mālō, {name} — kuo ke lesisita ki he {session}. Toki sio ʻi he Uike Fakatekinolosia ʻo Nuʻusila 2027!",
+    portal_no_students: "ʻOku teʻeki ai lesisita ha tokotaha ako.",
+    manual_added: "Kuo tānaki ʻa {name}."
   }
 };
 
+/** The language the visitor last picked (nav.js remembers it). */
+function currentLang() {
+  try {
+    const saved = localStorage.getItem('pouHonoLang');
+    if (saved && TRANSLATIONS[saved]) return saved;
+  } catch (err) {
+    // Storage blocked (private window etc.) — English it is.
+  }
+  return 'en';
+}
+
+/**
+ * One string in the current language, for text a page script sets itself
+ * ("Submitting…", "Copied!", a success message). Falls back to English
+ * for any key a language is missing. {name}-style placeholders are filled
+ * from `vars`; callers set the result with textContent, never innerHTML,
+ * because those values are user-typed.
+ */
+function i18nText(key, vars) {
+  const dict = TRANSLATIONS[currentLang()];
+  let text = (dict && dict[key]) || TRANSLATIONS.en[key] || key;
+  Object.entries(vars || {}).forEach(([name, value]) => {
+    text = text.split(`{${name}}`).join(String(value));
+  });
+  return text;
+}
+
 function applyTranslations(lang) {
   const dict = TRANSLATIONS[lang] || TRANSLATIONS.en;
+  const lookup = (key) => dict[key] || TRANSLATIONS.en[key];
 
+  // Screen readers and browser hyphenation read this, so keep it honest.
+  document.documentElement.lang = TRANSLATIONS[lang] ? lang : 'en';
+
+  // A key missing from this language falls back to English rather than
+  // leaving the previous language's text in place (switching Samoan ->
+  // Māori used to strand any untranslated string in Samoan).
   document.querySelectorAll('[data-i18n]').forEach((el) => {
-    const key = el.getAttribute('data-i18n');
-    if (dict[key]) el.textContent = dict[key];
+    const text = lookup(el.getAttribute('data-i18n'));
+    if (text) el.textContent = text;
+  });
+
+  // For the few strings that carry markup (the hero heading's highlighted
+  // words, a line break). ONLY ever point this at keys in this file —
+  // these strings are ours, fixed at build time. Never use it for anything
+  // a user typed.
+  document.querySelectorAll('[data-i18n-html]').forEach((el) => {
+    const html = lookup(el.getAttribute('data-i18n-html'));
+    if (html) el.innerHTML = html;
   });
 
   document.querySelectorAll('[data-i18n-placeholder]').forEach((el) => {
-    const key = el.getAttribute('data-i18n-placeholder');
-    if (dict[key]) el.setAttribute('placeholder', dict[key]);
+    const text = lookup(el.getAttribute('data-i18n-placeholder'));
+    if (text) el.setAttribute('placeholder', text);
   });
 }
 
 window.applyTranslations = applyTranslations;
+window.i18nText = i18nText;

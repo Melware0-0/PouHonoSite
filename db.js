@@ -75,7 +75,9 @@ db.exec(`
     status    TEXT    NOT NULL DEFAULT 'Pending'
               CHECK (status IN ('Pending', 'Arrived')),
     token     TEXT    UNIQUE,
-    is_walk_in INTEGER NOT NULL DEFAULT 0 CHECK (is_walk_in IN (0, 1))
+    is_walk_in INTEGER NOT NULL DEFAULT 0 CHECK (is_walk_in IN (0, 1)),
+    created_at TEXT    DEFAULT (datetime('now')),
+    year_groups TEXT   DEFAULT ''
   )
 `);
 
@@ -102,6 +104,17 @@ db.exec(`
  *    NOT be coming after all. Defaults to 0, which is both the common case
  *    and the right answer for every row that existed before this column
  *    did. The actual head count is students - not_attending.
+ *
+ *  - created_at: when the registration was made (UTC, 'YYYY-MM-DD HH:MM:SS'),
+ *    for the admin PDF export. SQLite will not ALTER in a column whose
+ *    default is datetime('now'), so on an upgraded database it is added
+ *    with no default and rows from before it stay NULL ("not recorded").
+ *    POST /api/registrations sets it explicitly, so new rows get a time
+ *    on old and new databases alike.
+ *
+ *  - year_groups: which year groups the teacher said are coming, stored as
+ *    one comma-separated string in school order ("Year 7, Year 8"). Empty
+ *    for rows from before the question was asked.
  */
 function addColumnIfMissing(table, column, definition) {
   const columns = db.pragma(`table_info(${table})`);
@@ -118,6 +131,8 @@ function addColumnIfMissing(table, column, definition) {
 
 addColumnIfMissing('registrations', 'not_attending', 'INTEGER NOT NULL DEFAULT 0');
 addColumnIfMissing('registrations', 'is_walk_in', 'INTEGER NOT NULL DEFAULT 0 CHECK (is_walk_in IN (0, 1))');
+addColumnIfMissing('registrations', 'created_at', 'TEXT');
+addColumnIfMissing('registrations', 'year_groups', "TEXT DEFAULT ''");
 
 /**
  * Individual student sign-ups, always linked to a registration:
@@ -140,6 +155,25 @@ db.exec(`
 `);
 
 /**
+ * One-time rename of the original placeholder sessions to the real
+ * workshops. Databases created before the rename still hold the old
+ * names, which the server would no longer accept and the forms no
+ * longer offer. Matching on the exact old value makes this a no-op on
+ * every later startup.
+ */
+const RENAMED_SESSIONS = [
+  ['Programming', 'AI Fundamentals Workshop'],
+  ['Social Media', 'Graphic Design Workshop'],
+  ['Robotics', 'Build and Battle Robots Workshop'],
+  ['Computer Building', 'How to Hack a Bank (Ethical Hacking Workshop)'],
+  ['Gaming', "DJ'ing Basics Workshop"]
+];
+const renameSession = db.prepare('UPDATE students SET preferred_session = ? WHERE preferred_session = ?');
+db.transaction(() => {
+  for (const [oldName, newName] of RENAMED_SESSIONS) renameSession.run(newName, oldName);
+})();
+
+/**
  * Seed data: if the table is completely empty (first ever run),
  * insert a few example records so the app demos nicely.
  * Real data added afterwards is never touched.
@@ -149,9 +183,10 @@ db.exec(`
  * no demo data at all:
  *  - `session` on a registration is the whole-event name
  *    ('NZ Tech Week 2027'), which is exactly what the teacher form posts.
- *    The five things a person actually picks between — Robotics, Gaming,
- *    Programming, Computer Building, Social Media — are per-STUDENT
- *    choices, so they live in students.preferred_session further down.
+ *    The five workshops a person actually picks between (AI Fundamentals,
+ *    Graphic Design, Build and Battle Robots, Ethical Hacking, DJ'ing
+ *    Basics) are per-STUDENT choices, so they live in
+ *    students.preferred_session further down.
  *  - `date` is one of the three event days, taken from EVENT_DAYS rather
  *    than typed out again, and the classes are spread over all three.
  *
@@ -275,34 +310,34 @@ if (seededRegistrationIds && studentCount === 0) {
 
   const seedStudents = [
     // Papatoetoe Intermediate
-    { reg: 'papatoetoe', name: 'Aroha Ngata', age: 12, year_group: 'Year 7', allergies: '', preferred_session: 'Robotics' },
-    { reg: 'papatoetoe', name: 'Sione Vaka', age: 12, year_group: 'Year 8', allergies: 'Peanuts', preferred_session: 'Gaming' },
-    { reg: 'papatoetoe', name: 'Mele Latu', age: 13, year_group: 'Year 8', allergies: '', preferred_session: 'Programming' },
-    { reg: 'papatoetoe', name: 'Riya Patel', age: 12, year_group: 'Year 7', allergies: '', preferred_session: 'Robotics' },
+    { reg: 'papatoetoe', name: 'Aroha Ngata', age: 12, year_group: 'Year 7', allergies: '', preferred_session: 'Build and Battle Robots Workshop' },
+    { reg: 'papatoetoe', name: 'Sione Vaka', age: 12, year_group: 'Year 8', allergies: 'Peanuts', preferred_session: "DJ'ing Basics Workshop" },
+    { reg: 'papatoetoe', name: 'Mele Latu', age: 13, year_group: 'Year 8', allergies: '', preferred_session: 'AI Fundamentals Workshop' },
+    { reg: 'papatoetoe', name: 'Riya Patel', age: 12, year_group: 'Year 7', allergies: '', preferred_session: 'Build and Battle Robots Workshop' },
 
     // Manurewa Primary
-    { reg: 'manurewa', name: 'Tane Wiremu', age: 10, year_group: 'Year 6', allergies: 'Asthma — inhaler carried', preferred_session: 'Gaming' },
-    { reg: 'manurewa', name: 'Lupe Faleolo', age: 10, year_group: 'Year 6', allergies: '', preferred_session: 'Social Media' },
-    { reg: 'manurewa', name: 'Jacob Tuipulotu', age: 11, year_group: 'Year 6', allergies: '', preferred_session: 'Computer Building' },
+    { reg: 'manurewa', name: 'Tane Wiremu', age: 10, year_group: 'Year 6', allergies: 'Asthma — inhaler carried', preferred_session: "DJ'ing Basics Workshop" },
+    { reg: 'manurewa', name: 'Lupe Faleolo', age: 10, year_group: 'Year 6', allergies: '', preferred_session: 'Graphic Design Workshop' },
+    { reg: 'manurewa', name: 'Jacob Tuipulotu', age: 11, year_group: 'Year 6', allergies: '', preferred_session: 'How to Hack a Bank (Ethical Hacking Workshop)' },
 
     // Otara Youth Group
-    { reg: 'otara', name: 'Anaru Rewiti', age: 15, year_group: 'Year 10', allergies: '', preferred_session: 'Programming' },
-    { reg: 'otara', name: 'Sina Tialavea', age: 14, year_group: 'Year 9', allergies: 'Dairy', preferred_session: 'Social Media' },
-    { reg: 'otara', name: 'Deshaun Kaur', age: 15, year_group: 'Year 10', allergies: '', preferred_session: 'Robotics' },
+    { reg: 'otara', name: 'Anaru Rewiti', age: 15, year_group: 'Year 10', allergies: '', preferred_session: 'AI Fundamentals Workshop' },
+    { reg: 'otara', name: 'Sina Tialavea', age: 14, year_group: 'Year 9', allergies: 'Dairy', preferred_session: 'Graphic Design Workshop' },
+    { reg: 'otara', name: 'Deshaun Kaur', age: 15, year_group: 'Year 10', allergies: '', preferred_session: 'Build and Battle Robots Workshop' },
 
     // Mangere College
-    { reg: 'mangere', name: 'Kalolaine Fifita', age: 16, year_group: 'Year 11', allergies: '', preferred_session: 'Computer Building' },
-    { reg: 'mangere', name: 'Hemi Paora', age: 17, year_group: 'Year 12', allergies: '', preferred_session: 'Programming' },
-    { reg: 'mangere', name: 'Ana Toluta’u', age: 16, year_group: 'Year 11', allergies: 'Shellfish', preferred_session: 'Gaming' },
-    { reg: 'mangere', name: 'Priya Singh', age: 17, year_group: 'Year 12', allergies: '', preferred_session: 'Social Media' },
+    { reg: 'mangere', name: 'Kalolaine Fifita', age: 16, year_group: 'Year 11', allergies: '', preferred_session: 'How to Hack a Bank (Ethical Hacking Workshop)' },
+    { reg: 'mangere', name: 'Hemi Paora', age: 17, year_group: 'Year 12', allergies: '', preferred_session: 'AI Fundamentals Workshop' },
+    { reg: 'mangere', name: 'Ana Toluta’u', age: 16, year_group: 'Year 11', allergies: 'Shellfish', preferred_session: "DJ'ing Basics Workshop" },
+    { reg: 'mangere', name: 'Priya Singh', age: 17, year_group: 'Year 12', allergies: '', preferred_session: 'Graphic Design Workshop' },
 
     // Manurewa Primary, second visit
-    { reg: 'manurewa-repeat', name: 'Nikau Heke', age: 11, year_group: 'Year 7', allergies: '', preferred_session: 'Robotics' },
-    { reg: 'manurewa-repeat', name: 'Talia Ropati', age: 10, year_group: 'Year 6', allergies: '', preferred_session: 'Computer Building' },
+    { reg: 'manurewa-repeat', name: 'Nikau Heke', age: 11, year_group: 'Year 7', allergies: '', preferred_session: 'Build and Battle Robots Workshop' },
+    { reg: 'manurewa-repeat', name: 'Talia Ropati', age: 10, year_group: 'Year 6', allergies: '', preferred_session: 'How to Hack a Bank (Ethical Hacking Workshop)' },
 
     // Individual sign-ups, no teacher involved
-    { reg: 'walk-in', name: 'Josiah Leota', age: 14, year_group: 'Year 9', allergies: '', preferred_session: 'Programming' },
-    { reg: 'walk-in', name: 'Maia Thompson', age: 13, year_group: 'Year 9', allergies: 'Gluten', preferred_session: 'Gaming' }
+    { reg: 'walk-in', name: 'Josiah Leota', age: 14, year_group: 'Year 9', allergies: '', preferred_session: 'AI Fundamentals Workshop' },
+    { reg: 'walk-in', name: 'Maia Thompson', age: 13, year_group: 'Year 9', allergies: 'Gluten', preferred_session: "DJ'ing Basics Workshop" }
   ];
 
   const seedAllStudents = db.transaction((rows) => {

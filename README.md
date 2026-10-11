@@ -50,6 +50,8 @@ short version.
 | `ADMIN_PASSWORD_HASH` | yes, for the admin dashboard | A **bcrypt hash** of the admin password — never the password itself |
 | `SESSION_SECRET` | yes, for the admin dashboard | A long random string used to sign the admin login cookie |
 | `PORT` | no | Port to listen on. Defaults to `3000` |
+| `EMAIL_ENABLED` | no | `true` sends confirmation emails; anything else (the default, `false`) just logs them. See [Confirmation emails](#confirmation-emails) |
+| `EMAIL_FROM` | when emails are on | The "From" address, verified with your email provider |
 
 Generate the two values:
 
@@ -64,6 +66,39 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 If either is missing the server still starts and every public page works — it
 prints a loud warning and admin login refuses every attempt. It **fails
 closed**: an unconfigured server is never an open one.
+
+### Confirmation emails
+
+`email.js` sends a "thank you / save the date" email when a teacher registers a
+class. It is built so the client can plug in any email service later.
+
+**Right now it sends nothing.** With `EMAIL_ENABLED=false` (the default), each
+email is printed to the server console instead — recipient, subject and the
+text — so you can see it working in development.
+
+To turn real emails on:
+
+1. Pick a provider and install its package, e.g. `npm install @sendgrid/mail`
+   (or `mailgun.js form-data`, or `nodemailer` for any SMTP server).
+2. In `.env`, set `EMAIL_ENABLED=true`, `EMAIL_FROM=...`, and the provider's
+   key (e.g. `SENDGRID_API_KEY=...`).
+3. In `email.js`, replace the body of `sendEmail()` with the provider's code.
+   The comment block at the top of the file has a ready-to-paste example for
+   SendGrid, Mailgun and Nodemailer.
+4. Restart the server and register a test class with your own address.
+
+Good to know:
+
+- **Students have no email address to send to.** The student forms don't ask
+  for one, so student sign-ups log "no address" and send nothing. The call is
+  already in place, so adding an email field later is a small change.
+- **An email problem never breaks a registration.** The registration is saved
+  first; if sending fails, the error is logged and the person still sees their
+  success screen.
+- Setting `EMAIL_ENABLED=true` before step 3 logs an error per email rather
+  than pretending to send.
+- The "event details" line in the email is a placeholder until times and
+  arrival details are confirmed — edit `detailsPlaceholder` in `email.js`.
 
 ### Changing the event dates
 
@@ -196,7 +231,7 @@ correctly with plain `>=` / `<=` comparisons. Keep that format.
 
 Handled separately, or still to do:
 
-- Hosting and deployment; the auto-reply confirmation email
+- Hosting and deployment; connecting a real email provider (the confirmation email itself is built — see [Confirmation emails](#confirmation-emails))
 - School-name search behind the "Search your school…" box on the teacher form
 - Real logo, event photography, and session images/descriptions
 - Native-speaker review of the Māori, Samoan and Tongan translations

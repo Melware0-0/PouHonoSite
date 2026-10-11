@@ -92,6 +92,7 @@
   }
 
   .session-card:hover { transform: translateY(-2px); }
+  .session-card:focus-visible { outline: 3px solid var(--green-accent); outline-offset: 2px; }
 
   .session-card.is-selected {
     border-color: var(--green-accent);
@@ -100,6 +101,8 @@
 
   .session-card__icon { font-size: 1.8rem; margin-bottom: 6px; }
   .session-card__name { font-weight: 700; font-size: 0.9rem; }
+  .session-card__host { font-size: 0.8rem; color: var(--text-muted); margin-top: 4px; }
+  .session-card.is-selected .session-card__host { color: inherit; }
 
   button[type="submit"] {
     width: 100%;
@@ -173,7 +176,7 @@
 
         <div class="field">
           <label for="s-name" data-i18n="label_your_name">Your name</label>
-          <input type="text" id="s-name" name="name" required>
+          <input type="text" id="s-name" name="name" maxlength="100" required>
         </div>
 
         <div class="field-row">
@@ -191,31 +194,36 @@
 
         <div class="field">
           <label for="s-allergies"><span data-i18n="label_allergies">Allergies / health conditions</span> <span style="color:var(--text-muted); font-weight:400;" data-i18n="label_optional">(optional)</span></label>
-          <textarea id="s-allergies" name="allergies" rows="2"></textarea>
+          <textarea id="s-allergies" name="allergies" maxlength="500" rows="2"></textarea>
         </div>
 
         <div class="field">
-          <label data-i18n="label_preferred_session">Preferred session</label>
-          <div class="session-grid" id="sessionGrid">
-            <div class="session-card" data-session="Robotics">
+          <label id="sessionLabel" data-i18n="label_preferred_session">Preferred session</label>
+          <div class="session-grid" id="sessionGrid" role="radiogroup" aria-labelledby="sessionLabel">
+            <div class="session-card" role="radio" tabindex="0" aria-checked="false" data-session="AI Fundamentals Workshop">
+              <div class="session-card__icon" aria-hidden="true">🧠</div>
+              <div class="session-card__name">AI Fundamentals Workshop</div>
+              <div class="session-card__host">Microsoft</div>
+            </div>
+            <div class="session-card" role="radio" tabindex="0" aria-checked="false" data-session="Graphic Design Workshop">
+              <div class="session-card__icon" aria-hidden="true">🎨</div>
+              <div class="session-card__name">Graphic Design Workshop</div>
+              <div class="session-card__host">The Cause Collective</div>
+            </div>
+            <div class="session-card" role="radio" tabindex="0" aria-checked="false" data-session="Build and Battle Robots Workshop">
               <div class="session-card__icon" aria-hidden="true">🤖</div>
-              <div class="session-card__name" data-i18n="session_robotics">Robotics</div>
+              <div class="session-card__name">Build and Battle Robots Workshop</div>
+              <div class="session-card__host">Robot Rampage</div>
             </div>
-            <div class="session-card" data-session="Gaming">
-              <div class="session-card__icon" aria-hidden="true">🎮</div>
-              <div class="session-card__name" data-i18n="session_gaming">Gaming</div>
+            <div class="session-card" role="radio" tabindex="0" aria-checked="false" data-session="How to Hack a Bank (Ethical Hacking Workshop)">
+              <div class="session-card__icon" aria-hidden="true">🔐</div>
+              <div class="session-card__name">How to Hack a Bank (Ethical Hacking Workshop)</div>
+              <div class="session-card__host">Whitecliffe</div>
             </div>
-            <div class="session-card" data-session="Programming">
-              <div class="session-card__icon" aria-hidden="true">💻</div>
-              <div class="session-card__name" data-i18n="session_programming">Programming</div>
-            </div>
-            <div class="session-card" data-session="Computer Building">
-              <div class="session-card__icon" aria-hidden="true">🛠️</div>
-              <div class="session-card__name" data-i18n="session_computer_building">Computer Building</div>
-            </div>
-            <div class="session-card" data-session="Social Media">
-              <div class="session-card__icon" aria-hidden="true">📱</div>
-              <div class="session-card__name" data-i18n="session_social_media">Social Media</div>
+            <div class="session-card" role="radio" tabindex="0" aria-checked="false" data-session="DJ'ing Basics Workshop">
+              <div class="session-card__icon" aria-hidden="true">🎧</div>
+              <div class="session-card__name">DJ'ing Basics Workshop</div>
+              <div class="session-card__host">Serato</div>
             </div>
           </div>
         </div>
@@ -231,7 +239,6 @@
       <div class="success-icon" aria-hidden="true">🎉</div>
       <h2 data-i18n="success_title">You're all set!</h2>
       <p class="center" id="successText"></p>
-      <button type="button" class="btn btn--outline" id="registerAnotherBtn" style="width:100%;" data-i18n="btn_register_another">Register another student</button>
     </div>
 
   </div>
@@ -266,13 +273,29 @@
   opt18.textContent = '18+';
   yearSelect.appendChild(opt18);
 
-  // Session card selection.
+  // Session card selection. The cards are radio buttons as far as a
+  // keyboard or screen reader is concerned (role="radio", tabindex="0"),
+  // so a student who cannot use a mouse can still pick a workshop — before
+  // this they were plain divs, reachable only by clicking, and without a
+  // workshop the form cannot be submitted at all.
   let selectedSession = null;
-  document.querySelectorAll('.session-card').forEach((card) => {
-    card.addEventListener('click', () => {
-      document.querySelectorAll('.session-card').forEach((c) => c.classList.remove('is-selected'));
-      card.classList.add('is-selected');
-      selectedSession = card.dataset.session;
+  const sessionCards = document.querySelectorAll('.session-card');
+
+  function selectSession(card) {
+    sessionCards.forEach((c) => {
+      c.classList.toggle('is-selected', c === card);
+      c.setAttribute('aria-checked', String(c === card));
+    });
+    selectedSession = card ? card.dataset.session : null;
+  }
+
+  sessionCards.forEach((card) => {
+    card.addEventListener('click', () => selectSession(card));
+    card.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        selectSession(card);
+      }
     });
   });
 
@@ -386,7 +409,7 @@
     msg.className = 'message';
 
     if (!selectedSession) {
-      msg.textContent = 'Please pick a preferred session.';
+      msg.textContent = i18nText('error_pick_session');
       msg.classList.add('show', 'message--error');
       return;
     }
@@ -407,7 +430,7 @@
 
     const submitBtn = form.querySelector('button[type="submit"]');
     submitBtn.disabled = true;
-    submitBtn.textContent = 'Submitting…';
+    submitBtn.textContent = i18nText('btn_submitting');
 
     try {
       const res = await fetch(`/api/registrations/token/${signUpToken}/students`, {
@@ -418,8 +441,11 @@
       const responseData = await res.json();
 
       if (res.ok) {
-        document.getElementById('successText').textContent =
-          `Thanks, ${responseData.name} — you're registered for ${responseData.preferred_session}. See you at NZ Tech Week 2027!`;
+        // textContent, not innerHTML: the name is whatever the student typed.
+        document.getElementById('successText').textContent = i18nText('student_success', {
+          name: responseData.name,
+          session: responseData.preferred_session
+        });
         showState('success');
       } else {
         const errors = (responseData.errors && responseData.errors.join(' ')) || 'Something went wrong. Please try again.';
@@ -431,15 +457,8 @@
       msg.classList.add('show', 'message--error');
     } finally {
       submitBtn.disabled = false;
-      submitBtn.textContent = 'Submit registration';
+      submitBtn.textContent = i18nText('btn_submit_registration');
     }
-  });
-
-  document.getElementById('registerAnotherBtn').addEventListener('click', () => {
-    document.getElementById('studentForm').reset();
-    document.querySelectorAll('.session-card').forEach((c) => c.classList.remove('is-selected'));
-    selectedSession = null;
-    showState('form');
   });
 </script>
 </body>

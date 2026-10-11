@@ -49,6 +49,10 @@ each value with the exact command that generates it.
 - `SESSION_SECRET` — long random string signing the admin cookie. Generate with
   `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
 - `PORT` — optional, defaults to 3000.
+- `EMAIL_ENABLED` — `true` sends confirmation emails via `email.js`; anything
+  else just logs them. `email.js`'s `sendEmail()` is a stub that throws until a
+  provider is wired in. Sending is never awaited by a route: a registration
+  must succeed even if email fails.
 
 If either secret is missing the server still starts and every public page works;
 it prints a warning and admin login refuses every attempt. It **fails closed** —
@@ -113,6 +117,7 @@ Both take the same token; an unknown token on either redirects to `/`.
 |---|---|
 | `POST /api/admin/login` · `logout` · `GET /api/admin/session` | public (login is rate limited) |
 | `GET /api/admin/students` | admin — every student in one query |
+| `GET /api/admin/export/pdf` | admin — all students + teacher registrations as a PDF (pdfkit) |
 | `GET /api/registrations` · `PUT`/`DELETE /api/registrations/:id` · `GET /api/registrations/:id/students` | admin |
 | `POST /api/registrations` | public, rate limited |
 | `GET /api/registrations/count` · `/api/registrations/token/:token` · `/api/walk-in-registration` | public |
@@ -144,14 +149,19 @@ Both take the same token; an unknown token on either redirects to `/`.
 - Translated strings live in `translations.js` keyed by `data-i18n` /
   `data-i18n-placeholder`, in all four languages: `en`, `mi`, `sm`, `to`. Add a
   new string to **all four** or the switcher falls back to English for it.
+  Text a page script sets itself goes through `i18nText(key, {vars})` (set it
+  with `textContent`). `data-i18n-html` is only for the few strings in
+  `translations.js` that carry markup, never for user input. Every page loads
+  `translations.js` before `nav.js`, so the shared header, nav and footer
+  translate everywhere.
 - ⚠️ The mi/sm/to strings are AI-generated and **not reviewed by fluent
   speakers**. The file header says so. Keep that warning, and don't present
   them as finished.
 
 ## Scope notes
 
-Handled separately or deliberately not built: hosting and deployment, the
-auto-reply confirmation email, school-name search behind the "Search your
+Handled separately or deliberately not built: hosting and deployment,
+connecting a real email provider, school-name search behind the "Search your
 school…" box, real logo and event imagery, and load testing to the brief's
 1,000-user target. `file_name` on a registration is just a filename string — no
 file is stored. Don't add these unless asked.
