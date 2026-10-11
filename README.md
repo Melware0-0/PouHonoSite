@@ -56,7 +56,8 @@ short version.
 | `NODE_ENV` | production hosting | Set to `production` for HTTPS-only admin cookies; serve over HTTPS |
 | `DATABASE_PATH` | no | Where the database file lives. Defaults to `pou-hono.db` next to `db.js`; on a host, point it into the persistent volume (e.g. `/data/pou-hono.db`) |
 | `EMAIL_ENABLED` | no | `true` sends confirmation emails; anything else (the default, `false`) just logs them. See [Confirmation emails](#confirmation-emails) |
-| `EMAIL_FROM` | when emails are on | The "From" address, verified with your email provider |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` | when emails are on | Your email provider's SMTP server and login (port defaults to `587`; `465` uses TLS from the start) |
+| `MAIL_FROM` | when emails are on | The "From" address, on a domain with SPF/DKIM set up |
 
 Set `TRUST_PROXY` to match your host's proxy topology so rate limits use the
 client IP. Only trust proxies that overwrite client-supplied forwarding headers.
@@ -82,23 +83,27 @@ sessions. The cookie is httpOnly, SameSite=Lax, and Secure in production.
 
 ### Confirmation emails
 
-`email.js` sends a "thank you / save the date" email when a teacher registers a
-class. It is built so the client can plug in any email service later.
+`email.js` emails a teacher when they register a class: a thank-you, a
+"save the date" box with their event day and the venue, their **student
+sign-up link and QR code**, and their **private portal link** (email is the
+one place they can find that link again later).
 
 **Right now it sends nothing.** With `EMAIL_ENABLED=false` (the default), each
 email is printed to the server console instead — recipient, subject and the
-text — so you can see it working in development.
+text — so you can see it working in development. The private portal link is
+never printed, because it is a credential.
 
-To turn real emails on:
+To turn real emails on — it sends over SMTP (via `nodemailer`), which every
+provider supports (SendGrid, Mailgun, Resend, Postmark, or the client's own
+mail server), so no code changes:
 
-1. Pick a provider and install its package, e.g. `npm install @sendgrid/mail`
-   (or `mailgun.js form-data`, or `nodemailer` for any SMTP server).
-2. In `.env`, set `EMAIL_ENABLED=true`, `EMAIL_FROM=...`, and the provider's
-   key (e.g. `SENDGRID_API_KEY=...`).
-3. In `email.js`, replace the body of `sendEmail()` with the provider's code.
-   The comment block at the top of the file has a ready-to-paste example for
-   SendGrid, Mailgun and Nodemailer.
-4. Restart the server and register a test class with your own address.
+1. In `.env`, set `EMAIL_ENABLED=true` and fill in `SMTP_HOST`, `SMTP_PORT`,
+   `SMTP_USER`, `SMTP_PASS` and `MAIL_FROM` from your provider.
+2. Make sure `MAIL_FROM`'s domain has SPF/DKIM set up, or mail lands in spam.
+3. Restart the server and register a test class with your own address.
+
+To use a provider's HTTP API instead of SMTP, replace the body of
+`sendEmail()` in `email.js` — the comment at the top has a SendGrid example.
 
 Good to know:
 
@@ -108,8 +113,8 @@ Good to know:
 - **An email problem never breaks a registration.** The registration is saved
   first; if sending fails, the error is logged and the person still sees their
   success screen.
-- Setting `EMAIL_ENABLED=true` before step 3 logs an error per email rather
-  than pretending to send.
+- Setting `EMAIL_ENABLED=true` without `SMTP_HOST` and `MAIL_FROM` logs an
+  error per email rather than pretending to send.
 - The "event details" line in the email is a placeholder until times and
   arrival details are confirmed — edit `detailsPlaceholder` in `email.js`.
 

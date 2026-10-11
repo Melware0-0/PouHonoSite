@@ -60,6 +60,10 @@ each value with the exact command that generates it.
   admin cookies.
 
 - `DATABASE_PATH` — optional; where the SQLite file lives (default: next to `db.js`). Point it into a host's persistent volume in production.
+- `EMAIL_ENABLED` — `true` sends confirmation emails from `email.js` over SMTP
+  (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM`); anything
+  else just logs them, never including the teacher's portal link. Sending is
+  never awaited by a route: a registration must succeed even if email fails.
 
 Public student limits are 100/hour per class token and IP, 60/hour for the
 walk-in token and IP, with a 600/hour IP ceiling including invalid tokens.
@@ -67,11 +71,6 @@ Class budgets run only after token validation. Teacher manual adds have a
 separate 200/hour budget per authenticated teacher token. Registration creation
 remains 20/hour per IP and admin login 10/15 minutes per IP. Limits are in-memory
 and reset on restart.
-
-- `EMAIL_ENABLED` — `true` sends confirmation emails via `email.js`; anything
-  else just logs them. `email.js`'s `sendEmail()` is a stub that throws until a
-  provider is wired in. Sending is never awaited by a route: a registration
-  must succeed even if email fails.
 
 If either secret is missing the server still starts and every public page works;
 it prints a warning and admin login refuses every attempt. It **fails closed** —

@@ -1,75 +1,75 @@
 /**
  * email.js — confirmation emails for new registrations.
  *
- * To activate emails: set EMAIL_ENABLED=true in .env, install your chosen
- * provider (e.g. npm install @sendgrid/mail), and replace the sendEmail
- * function below with the provider's implementation. See README for setup
- * instructions.
+ * To activate emails: set EMAIL_ENABLED=true in .env and fill in the SMTP
+ * settings and MAIL_FROM below — any SMTP provider works (SendGrid,
+ * Mailgun, Resend, Postmark, the client's own mail server), so switching
+ * provider is a settings change, not a code change. To use a provider's own
+ * API instead of SMTP, install it (e.g. npm install @sendgrid/mail) and
+ * replace the sendEmail function below with the provider's implementation.
+ * See README for setup instructions.
  *
  * Until then, every confirmation is written to the server console instead
  * of being sent, so the whole flow can be seen working in development
- * without an email account.
- *
- * Note that the console copy contains the recipient's name and address.
- * That is fine on a developer's machine; on a real server, either turn
- * emails on or be aware those details end up in its logs.
+ * without an email account. The console copy includes the recipient's name
+ * and address (fine on a developer's machine; on a real server those end up
+ * in its logs) but never the teacher's private portal link, which is a
+ * credential.
  */
 
 // ============================================================================
-// PROVIDER SETUP — this is the only part to change when the client is ready.
+// PROVIDER SETUP — settings live in .env, never in this file.
 // ============================================================================
 //
-// 1. Add to .env (never to this file — .env is gitignored, this file is not):
+//   EMAIL_ENABLED=true
+//   SMTP_HOST=smtp.sendgrid.net        (your provider's SMTP server)
+//   SMTP_PORT=587                      (465 = TLS from the start; 587 upgrades)
+//   SMTP_USER=apikey                   (provider-specific; may be blank)
+//   SMTP_PASS=SG.xxxxx
+//   MAIL_FROM="SACTH NZ Tech Week <noreply@your-domain.nz>"
 //
-//      EMAIL_ENABLED=true
-//      EMAIL_FROM="SACTH NZ Tech Week <noreply@your-domain.nz>"
-//      ...plus the provider's own key, e.g.
-//      SENDGRID_API_KEY=SG.xxxxx                 (SendGrid)
-//      MAILGUN_API_KEY=xxxxx  MAILGUN_DOMAIN=mg.your-domain.nz   (Mailgun)
-//      SMTP_HOST=...  SMTP_PORT=587  SMTP_USER=...  SMTP_PASS=...  (Nodemailer)
+// MAIL_FROM must be on a domain the client controls, with SPF/DKIM set up,
+// or messages will land in spam.
 //
-// 2. npm install the provider's package.
+// To use an HTTP API instead of SMTP, replace the body of sendEmail(). e.g.
+// SendGrid (npm install @sendgrid/mail):
 //
-// 3. Replace the body of sendEmail() below with ONE of these:
-//
-//    --- SendGrid (npm install @sendgrid/mail) -------------------------------
-//      const sgMail = require('@sendgrid/mail');
-//      sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-//      await sgMail.send({ to, from: emailFrom(), subject, html, text });
-//
-//    --- Mailgun (npm install mailgun.js form-data) --------------------------
-//      const Mailgun = require('mailgun.js');
-//      const mg = new Mailgun(require('form-data')).client({
-//        username: 'api', key: process.env.MAILGUN_API_KEY
-//      });
-//      await mg.messages.create(process.env.MAILGUN_DOMAIN,
-//        { to, from: emailFrom(), subject, html, text });
-//
-//    --- Nodemailer / any SMTP server (npm install nodemailer) ---------------
-//      const nodemailer = require('nodemailer');
-//      const transport = nodemailer.createTransport({
-//        host: process.env.SMTP_HOST,
-//        port: Number(process.env.SMTP_PORT || 587),
-//        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
-//      });
-//      await transport.sendMail({ to, from: emailFrom(), subject, html, text });
-//
-// (Create the client once, outside the function, if you prefer — these are
-// written inline so each example is complete in one place.)
+//   const sgMail = require('@sendgrid/mail');
+//   sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+//   await sgMail.send({ to, from: process.env.MAIL_FROM, subject, html, text,
+//     attachments: attachments.map((a) => ({ filename: a.filename, type: 'image/png',
+//       content: a.content.toString('base64'), disposition: 'inline', content_id: a.cid })) });
 // ============================================================================
+
+const nodemailer = require('nodemailer');
+
+let transporter = null;
+
+/** Built on first use, so it reads the .env that server.js has loaded. */
+function getTransporter() {
+  if (!process.env.SMTP_HOST || !process.env.MAIL_FROM) {
+    throw new Error('EMAIL_ENABLED=true, but SMTP_HOST and MAIL_FROM are not both set in .env.');
+  }
+  if (!transporter) {
+    const port = Number(process.env.SMTP_PORT) || 587;
+    transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port,
+      secure: port === 465, // 465 = TLS from the start; 587 upgrades after connecting
+      auth: process.env.SMTP_USER
+        ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+        : undefined
+    });
+  }
+  return transporter;
+}
 
 /**
  * Sends one email through the real provider. Only ever called when
- * EMAIL_ENABLED=true.
- *
- * REPLACE THIS FUNCTION'S BODY with your provider's code (see above).
- *
- * Until it is replaced it throws on purpose: turning EMAIL_ENABLED on
- * without wiring up a provider should fail loudly in the server log, not
- * look as if mail went out when none did.
+ * EMAIL_ENABLED=true. Replace this body to use a provider's HTTP API.
  */
-async function sendEmail({ to, subject, html, text }) {
-  throw new Error('EMAIL_ENABLED=true, but no email provider is set up yet — see sendEmail() in email.js.');
+async function sendEmail({ to, subject, html, text, attachments }) {
+  await getTransporter().sendMail({ from: process.env.MAIL_FROM, to, subject, text, html, attachments });
 }
 
 // ----------------------------------------------------------------------------
@@ -83,11 +83,7 @@ function emailEnabled() {
   return String(process.env.EMAIL_ENABLED || '').trim().toLowerCase() === 'true';
 }
 
-function emailFrom() {
-  return process.env.EMAIL_FROM || 'SACTH NZ Tech Week <noreply@example.invalid>';
-}
-
-/** Names and school details are user-typed, so everything is escaped. */
+/** Names, schools and links are escaped before going into the HTML body. */
 function escapeHtml(value) {
   return String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -95,6 +91,11 @@ function escapeHtml(value) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+/** A subject line must be one line, whatever a visitor typed. */
+function oneLine(value) {
+  return String(value ?? '').replace(/[\r\n]+/g, ' ').trim();
 }
 
 /**
@@ -105,8 +106,12 @@ function escapeHtml(value) {
 function messageFor(data) {
   if (data.registrationType === 'teacher') {
     return {
-      subject: `Your class is registered for ${EVENT_NAME}`,
-      intro: `Thank you for registering your class for ${EVENT_NAME}. We can't wait to see you all there.`,
+      subject: data.schoolName
+        ? `You're registered for ${EVENT_NAME} — ${oneLine(data.schoolName)}`
+        : `Your class is registered for ${EVENT_NAME}`,
+      intro: data.schoolName
+        ? `Thank you for registering ${data.schoolName} for ${EVENT_NAME}. We can't wait to see you all there.`
+        : `Thank you for registering your class for ${EVENT_NAME}. We can't wait to see you all there.`,
       workshopLine: 'Your students choose their own workshop when they sign up using your class link.'
     };
   }
@@ -119,16 +124,44 @@ function messageFor(data) {
   };
 }
 
-/** Builds the subject plus HTML and plain-text bodies (send both — spam filters like it). */
-function buildConfirmationEmail(data) {
+/**
+ * Builds { subject, html, text, attachments } (send both bodies — spam
+ * filters like it).
+ *
+ * Teacher emails also carry the two links from registration: the student
+ * sign-up link with its QR code, and the private portal link. Email is the
+ * only place a teacher can find the portal link again later, so it is
+ * worth including — with a clear "keep this to yourself".
+ *
+ * Gmail and Outlook block data: images, so the QR code travels as an inline
+ * attachment that the HTML refers to by its cid.
+ */
+function buildConfirmationEmail(data, { hidePortalLink = false } = {}) {
   const message = messageFor(data);
   const name = data.recipientName || 'there';
   const eventDate = data.eventDate || 'Date to be confirmed';
   const eventLocation = data.eventLocation || 'Venue to be confirmed';
+  const portalLink = hidePortalLink && data.portalLink ? '[portal link hidden from logs]' : data.portalLink;
+  const qrPng = data.qrCode && String(data.qrCode).startsWith('data:image/png;base64,')
+    ? Buffer.from(String(data.qrCode).split(',')[1], 'base64')
+    : null;
 
   // Event details placeholder — times, what to bring, parking etc. are not
   // decided yet. Replace this line once SACTH confirms them.
   const detailsPlaceholder = 'Times, what to bring and arrival details will be sent closer to the day.';
+
+  const linksHtml = (data.studentLink || portalLink) ? `
+        <tr><td style="padding:0 32px 24px;">
+          ${data.studentLink ? `
+          <p style="font-size:15px; font-weight:bold; margin:0 0 6px;">Student sign-up link</p>
+          <p style="font-size:14px; line-height:1.6; color:#4a524e; margin:0 0 8px;">Share this link, or the QR code, with your students so they can add themselves to your class.</p>
+          <p style="font-size:14px; margin:0 0 12px; word-break:break-all;"><a href="${escapeHtml(data.studentLink)}" style="color:#1d9e75;">${escapeHtml(data.studentLink)}</a></p>
+          ${qrPng ? '<p style="margin:0 0 20px;"><img src="cid:studentqr" alt="QR code for the student sign-up link" width="180" height="180" style="display:block;"></p>' : ''}` : ''}
+          ${portalLink ? `
+          <p style="font-size:15px; font-weight:bold; margin:0 0 6px;">Your private teacher link</p>
+          <p style="font-size:14px; line-height:1.6; color:#4a524e; margin:0 0 8px;">Keep this to yourself — anyone with it can manage your class. Use it to see who has signed up and add students by hand.</p>
+          <p style="font-size:14px; margin:0; word-break:break-all;"><a href="${escapeHtml(portalLink)}" style="color:#1d9e75;">${escapeHtml(portalLink)}</a></p>` : ''}
+        </td></tr>` : '';
 
   // Table layout and inline styles throughout: many email clients (Outlook
   // especially) ignore <style> blocks and modern CSS layout.
@@ -165,7 +198,7 @@ function buildConfirmationEmail(data) {
             </td></tr>
           </table>
         </td></tr>
-
+${linksHtml}
         <tr><td style="padding:0 32px 32px;">
           <p style="font-size:14px; line-height:1.6; color:#4a524e; margin:0 0 12px;">${escapeHtml(detailsPlaceholder)}</p>
           <p style="font-size:14px; line-height:1.6; color:#4a524e; margin:0;">Questions? Email <a href="mailto:sacth@thecausecollective.org.nz" style="color:#1d9e75;">sacth@thecausecollective.org.nz</a> or call +64 9 869 2433.</p>
@@ -190,19 +223,25 @@ function buildConfirmationEmail(data) {
     'SAVE THE DATE',
     eventDate,
     eventLocation,
+    ...(data.studentLink ? ['', 'Student sign-up link (share this with your students):', data.studentLink] : []),
+    ...(portalLink ? ['', 'Your private teacher link (keep this to yourself - it lets you manage your class):', portalLink] : []),
     '',
     detailsPlaceholder,
     'Questions? Email sacth@thecausecollective.org.nz or call +64 9 869 2433.'
   ].join('\n');
 
-  return { subject: message.subject, html, text };
+  const attachments = qrPng ? [{ filename: 'qr.png', content: qrPng, cid: 'studentqr' }] : [];
+
+  return { subject: message.subject, html, text, attachments };
 }
 
 /**
  * sendConfirmationEmail(to, data)
  *
  * `data`: { recipientName, workshopName, eventDate, eventLocation,
- *           registrationType: 'student' | 'teacher' }
+ *           registrationType: 'student' | 'teacher',
+ *           // teacher only, all optional:
+ *           schoolName, studentLink, portalLink, qrCode (PNG data URL) }
  *
  * Never throws and never needs awaiting: a registration has already been
  * saved by the time this runs, and a slow or broken email provider must not
@@ -220,19 +259,19 @@ async function sendConfirmationEmail(to, data = {}) {
       return { sent: false, reason: 'no-address' };
     }
 
-    const email = buildConfirmationEmail(data);
-
     if (!emailEnabled()) {
+      const preview = buildConfirmationEmail(data, { hidePortalLink: true });
       console.log([
         '[email] EMAIL_ENABLED is not true — logging instead of sending:',
         `  To:      ${to}`,
-        `  Subject: ${email.subject}`,
-        ...email.text.split('\n').map((line) => `  | ${line}`)
+        `  Subject: ${preview.subject}`,
+        ...preview.text.split('\n').map((line) => `  | ${line}`)
       ].join('\n'));
       return { sent: false, reason: 'disabled' };
     }
 
-    await sendEmail({ to, subject: email.subject, html: email.html, text: email.text });
+    const email = buildConfirmationEmail(data);
+    await sendEmail({ to, ...email });
     console.log(`[email] Confirmation sent to ${to}.`);
     return { sent: true };
   } catch (err) {

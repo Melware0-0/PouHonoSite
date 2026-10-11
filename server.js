@@ -51,7 +51,7 @@ const cookieParser = require('cookie-parser'); // reads/writes the admin session
 const rateLimit = require('express-rate-limit'); // caps how often one IP can hit a route
 const db = require('./db'); // our database module (creates the table on first run)
 const EVENT_DAYS = require('./public/event-days.js');
-const { sendConfirmationEmail } = require('./email'); // confirmation emails (logs only until a provider is set up)
+const { sendConfirmationEmail } = require('./email'); // confirmation emails (logs only unless EMAIL_ENABLED=true)
 
 const app = express();
 
@@ -687,12 +687,19 @@ app.post('/api/registrations', createRegistrationLimiter, async (req, res) => {
   // Confirmation to the teacher's address. Deliberately not awaited: the
   // registration is already saved, and the teacher's success screen should
   // not wait on (or fail because of) an email provider.
+  // Email the teacher their links (student link + QR, private portal link)
+  // and the save-the-date. Deliberately NOT awaited: a slow or failing mail
+  // server must never delay or break a registration that already saved.
   sendConfirmationEmail(data.email, {
     recipientName: data.contact,
     workshopName: null, // teachers don't pick one — each student does
     eventDate: eventDayLabel(data.date),
     eventLocation: EVENT_LOCATION,
-    registrationType: 'teacher'
+    registrationType: 'teacher',
+    schoolName: data.school,
+    studentLink: link,
+    portalLink,
+    qrCode
   });
 
   // 201 = "Created".
