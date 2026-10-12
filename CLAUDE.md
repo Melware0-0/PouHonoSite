@@ -32,11 +32,19 @@ There is **no build step, no bundler, no linter and no test suite**
 (`package.json` defines only `start`). Do not add one unless asked. You edit a
 file and reload the page.
 
-The server needs a `.env` before the admin dashboard works — see below.
+Node is pinned to `22.x || 24.x` in `engines`. `package.json` also has an
+`allowScripts` entry approving the locked `better-sqlite3` version's native
+build, which npm 12+ otherwise skips (the server then crashes with "Could not
+locate the bindings file"). If you bump `better-sqlite3`, update that entry
+(`npm install-scripts approve better-sqlite3`).
+
+The admin dashboard needs the two admin environment variables below, supplied
+through a local `.env` or the hosting environment.
 
 The SQLite file `pou-hono.db` is created next to `db.js` (or at `DATABASE_PATH`) on first run and seeded
-with example classes and students. Delete it to reset all data; the schema and
-seed logic in `db.js` rebuild it.
+with example classes and students. To reset development data, stop the server
+and delete the file and its `-wal` and `-shm` companions; the schema and seed
+logic in `db.js` rebuild them on restart.
 
 ## Environment (`.env`)
 
@@ -64,11 +72,16 @@ each value with the exact command that generates it.
   (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM`); anything
   else just logs them, never including the teacher's portal link. Sending is
   never awaited by a route: a registration must succeed even if email fails.
+  Only teachers are emailed; student forms collect no address, so student
+  sign-ups call it with `null`. Railway's Hobby plan blocks outbound SMTP
+  (Pro and above only); on Hobby, swap `sendEmail()` for a provider's HTTPS
+  API.
 
 Public student limits are 100/hour per class token and IP, 60/hour for the
 walk-in token and IP, with a 600/hour IP ceiling including invalid tokens.
 Class budgets run only after token validation. Teacher manual adds have a
-separate 200/hour budget per authenticated teacher token. Registration creation
+separate 200/hour budget per authenticated class, keyed by registration ID; rotating
+the teacher token does not reset that budget. Registration creation
 remains 20/hour per IP and admin login 10/15 minutes per IP. Limits are in-memory
 and reset on restart.
 
@@ -87,7 +100,8 @@ Every API route sits behind exactly one of these. When adding a route, the first
 question is which one it needs.
 
 - **Public** — anyone. Can create a registration, and can sign a student up if
-  they hold a valid link token. Cannot read anybody's data.
+  they hold a valid link token. The public token lookup returns the school
+  name and walk-in flag, but no contact or student details.
 - **Teacher** — holds the secret token from their own portal link. `requireTeacherToken`
   reads it from an `Authorization: Bearer` header or `?token=`, looks up the
   registration and attaches it as `req.registration`. There is no teacher
@@ -114,6 +128,9 @@ Two rules that are easy to break by accident:
   placeholders) — **never build SQL by string concatenation here.** Routes
   select **explicit columns** rather than `SELECT *` on `registrations`, so a
   new column can never leak into a response by accident; keep that pattern.
+- **`email.js`** — builds and sends the teacher confirmation email (HTML +
+  text, inline QR by `cid`). `buildConfirmationEmail` escapes every value it
+  puts in the HTML; keep that.
 - **`db.js`** — owns the SQLite connection and schema. Creates `registrations`
   (with a `status` CHECK constraint of `'Pending' | 'Arrived'`) and `students`,
   upgrades existing databases in place via `addColumnIfMissing(...)`, and seeds
@@ -127,10 +144,14 @@ Two rules that are easy to break by accident:
   - `nav.js` injects the shared nav and footer into every page
   - `translations.js` swaps four languages via `data-i18n` attributes
   - `event-days.js` holds the three event dates
+  - `schools.js` holds the South Auckland school list behind the "Search your
+    school…" datalist on the teacher form
   - `vendor/chart.umd.js` is Chart.js 4.4.1 for the admin chart, self-hosted
     (MIT, licence alongside) so no third-party script runs on the admin page
   - `styles.css`
-- **`pou-hono.db`** — the data, one file, gitignored. No cloud, by design.
+- **`pou-hono.db`** — the data, one file, gitignored. Stored on the server or
+  configured persistent volume; hosting determines its location. Optional SMTP sends teacher details and links through the
+  provider, and console previews include teacher details in server logs.
 
 ### Routes
 
@@ -166,6 +187,12 @@ Existing teacher portal links from before this split must be replaced.
 - **New front-end page** → a new file in `public/`, copying an existing page's
   structure (nav placeholder, `styles.css`, `nav.js`, and `translations.js` if
   it needs the language switcher). These are separate pages, not one SPA.
+- **Renaming a workshop** → the five names must match in `validSessions`
+  (`validateStudent` in `server.js`), the options in `student.html`,
+  `teacher.html` and `register.html`, the flip cards in `index.html`,
+  and the `db.js` seed. Update `home_ws_*` descriptions in all four languages
+  in `translations.js`; workshop names and hosts stay in English in the HTML.
+  Existing rows need a migration like the one-time rename in `db.js`.
 - **Changing the event dates** → `public/event-days.js` and nowhere else. It is
   loaded both by Node (`require('./public/event-days.js')`) and by the browser
   (`<script src="/event-days.js">`), which is what keeps the dates defined once.
@@ -190,19 +217,25 @@ Existing teacher portal links from before this split must be replaced.
 
 ## Scope notes
 
-Handled separately or deliberately not built: hosting and deployment,
-connecting a real email provider, school-name search behind the "Search your
-school…" box, real logo and event imagery, and load testing to the brief's
-1,000-user target. `file_name` on a registration is just a filename string — no
-file is stored. Don't add these unless asked.
+Handled separately or deliberately not built: hosting and deployment (the
+client deploys to Railway themselves), connecting a real email provider (the
+client configures SMTP), load testing to the brief's 1,000-user target, a
+move from SQLite to a server database, admin edit/delete of a single student,
+and emails to students. `file_name` on a registration is just a filename
+string — no file is stored. Don't add these unless asked.
+
+The admin PDF export (`GET /api/admin/export/pdf`) looks for Arial, DejaVu Sans
+or Liberation Sans at fixed paths and falls back to Helvetica, which cannot
+print macrons or ʻokina. It deliberately leaves out ages and allergies.
 
 ## Security headers
 
 `server.js` sets security headers before all other middleware: `Referrer-Policy:
 no-referrer` protects secret teacher URLs, `nosniff` prevents MIME sniffing, and
 `X-Frame-Options: DENY` / CSP `frame-ancestors 'none'` prevent framing this site.
-The CSP permits same-origin resources and fetches, data-image QR codes, Chart.js
-from cdnjs, and the Google Maps iframe. Scripts and styles currently require
+The CSP permits same-origin resources and fetches, data-image QR codes, and the
+Google Maps iframe. Chart.js is self-hosted, so the CSP's leftover
+`https://cdnjs.cloudflare.com` script source is unused and can be removed. Scripts and styles currently require
 `'unsafe-inline'`; moving them into external files is separate work. There are
 no Google Fonts loads. Adding a new external resource requires updating the CSP
 and checking the affected pages in a browser. HSTS belongs to hosting/TLS.
