@@ -16,7 +16,9 @@ as static files. **No bundler, no framework, no build step** — you edit a file
 and reload the page.
 
 > **Why it is built in-house:** data sovereignty. The database is one file on
-> the machine running the server. Nothing is sent to a third-party service.
+> the machine running the server. Registration data stays in SQLite; optional
+> SMTP sends teacher details and links through an email provider. Console email previews also contain teacher
+> details, so hosting logs need the same care as the database.
 > The data includes children's names, ages and allergies, which is why the
 > access rules below are the way they are.
 
@@ -46,10 +48,12 @@ will leave the module unbuilt and the server will crash on start with
 
 On first run the database file `pou-hono.db` is created next to `db.js` (or at `DATABASE_PATH`) and
 seeded with example classes and students so the admin dashboard demos properly.
-Delete that file to reset everything.
+To reset development data, stop the server and delete that file and its
+`-wal` and `-shm` companions. Restarting recreates the schema and demo data.
 
 ### Settings (`.env`)
 
+Use a local `.env` or hosting environment variables for the settings.
 `.env` holds the secrets and is **not** committed — it is in `.gitignore`.
 `.env.example` is the committed template and explains each value; this is the
 short version.
@@ -93,17 +97,17 @@ sessions. The cookie is httpOnly, SameSite=Lax, and Secure in production.
 
 `email.js` emails a teacher when they register a class: a thank-you, a
 "save the date" box with their event day and the venue, their **student
-sign-up link and QR code**, and their **private portal link** (email is the
-one place they can find that link again later).
+sign-up link and QR code**, and their **private portal link** (teachers can
+find it again in that email; an admin can also reset it).
 
-**Right now it sends nothing.** With `EMAIL_ENABLED=false` (the default), each
+**Email is disabled by default.** With `EMAIL_ENABLED=false` (the default), each
 email is printed to the server console instead — recipient, subject and the
 text — so you can see it working in development. The private portal link is
 never printed, because it is a credential.
 
-To turn real emails on — it sends over SMTP (via `nodemailer`), which every
-provider supports (SendGrid, Mailgun, Resend, Postmark, or the client's own
-mail server), so no code changes:
+To turn real emails on, use SMTP (via `nodemailer`) with a provider such as
+SendGrid, Mailgun, Resend, Postmark, or the client's own SMTP server. No code
+changes are needed:
 
 1. In `.env`, set `EMAIL_ENABLED=true` and fill in `SMTP_HOST`, `SMTP_PORT`,
    `SMTP_USER`, `SMTP_PASS` and `MAIL_FROM` from your provider.
@@ -134,8 +138,10 @@ Good to know:
 ### Changing the event dates
 
 The three event days live in exactly one place: **`public/event-days.js`**.
-Change them there and nowhere else — the registration form, the teacher portal,
-the admin table and the seed data all read that file.
+Change them there and nowhere else — the registration form, teacher portal,
+server validation, email date labels and seed data read that file. The admin table formats each booking's stored
+date independently. Existing bookings keep their stored dates and need
+correction separately.
 
 The dates currently in it are **placeholders** pending confirmation from SACTH.
 
@@ -173,7 +179,8 @@ The FAQ body and the admin dashboard are English only.
 Three levels of access, and every API route sits behind one of them:
 
 - **Public** — anyone. Can create a registration, and can sign a student up if
-  they hold a valid link token. Cannot read anybody's data.
+  they hold a valid link token. The public token lookup returns the school
+  name and walk-in flag, but no contact or student details.
 - **Teacher** — holds the secret token from their own portal link. Can see and manage
   **only their own class**. No password: the unguessable token *is* the
   credential, while the separate student link can be shared with the whole class.
@@ -220,8 +227,9 @@ accident.
 10 per 15 minutes per IP. Public student sign-ups allow 100/hour per class
 token and IP (60/hour for the public walk-in token), plus a 600/hour IP abuse
 ceiling including invalid tokens. Invalid tokens do not consume class budgets.
-Teacher manual adds have a separate 200/hour budget per authenticated teacher
-token. These in-memory limits reset when the server restarts.
+Teacher manual adds have a separate 200/hour budget per authenticated class
+(keyed by registration ID, so rotating its teacher token does not reset the
+allowance). These in-memory limits reset when the server restarts.
 
 ---
 
@@ -275,9 +283,10 @@ correctly with plain `>=` / `<=` comparisons. Keep that format.
 - **Renaming or changing a workshop** → the names must match everywhere:
   `validSessions` in `validateStudent` (`server.js`), the session choices in
   `student.html`, `teacher.html` and `register.html`, the flip cards on
-  `index.html`, the matching strings in `translations.js`, and the seed data
-  in `db.js`. Existing student rows keep their old value unless you migrate
-  them (see the one-time rename in `db.js`).
+  `index.html`, and the seed data in `db.js`. Update workshop descriptions
+  (`home_ws_*`) in all four languages in `translations.js`; workshop names
+  and hosts deliberately stay in English in the HTML. Existing student rows
+  keep their old value unless you migrate them (see the one-time rename in `db.js`).
 
 ## Not in this repo yet
 

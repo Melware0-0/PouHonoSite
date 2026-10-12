@@ -38,11 +38,13 @@ build, which npm 12+ otherwise skips (the server then crashes with "Could not
 locate the bindings file"). If you bump `better-sqlite3`, update that entry
 (`npm install-scripts approve better-sqlite3`).
 
-The server needs a `.env` before the admin dashboard works — see below.
+The admin dashboard needs the two admin environment variables below, supplied
+through a local `.env` or the hosting environment.
 
 The SQLite file `pou-hono.db` is created next to `db.js` (or at `DATABASE_PATH`) on first run and seeded
-with example classes and students. Delete it to reset all data; the schema and
-seed logic in `db.js` rebuild it.
+with example classes and students. To reset development data, stop the server
+and delete the file and its `-wal` and `-shm` companions; the schema and seed
+logic in `db.js` rebuild them on restart.
 
 ## Environment (`.env`)
 
@@ -78,7 +80,8 @@ each value with the exact command that generates it.
 Public student limits are 100/hour per class token and IP, 60/hour for the
 walk-in token and IP, with a 600/hour IP ceiling including invalid tokens.
 Class budgets run only after token validation. Teacher manual adds have a
-separate 200/hour budget per authenticated teacher token. Registration creation
+separate 200/hour budget per authenticated class, keyed by registration ID; rotating
+the teacher token does not reset that budget. Registration creation
 remains 20/hour per IP and admin login 10/15 minutes per IP. Limits are in-memory
 and reset on restart.
 
@@ -97,7 +100,8 @@ Every API route sits behind exactly one of these. When adding a route, the first
 question is which one it needs.
 
 - **Public** — anyone. Can create a registration, and can sign a student up if
-  they hold a valid link token. Cannot read anybody's data.
+  they hold a valid link token. The public token lookup returns the school
+  name and walk-in flag, but no contact or student details.
 - **Teacher** — holds the secret token from their own portal link. `requireTeacherToken`
   reads it from an `Authorization: Bearer` header or `?token=`, looks up the
   registration and attaches it as `req.registration`. There is no teacher
@@ -145,7 +149,9 @@ Two rules that are easy to break by accident:
   - `vendor/chart.umd.js` is Chart.js 4.4.1 for the admin chart, self-hosted
     (MIT, licence alongside) so no third-party script runs on the admin page
   - `styles.css`
-- **`pou-hono.db`** — the data, one file, gitignored. No cloud, by design.
+- **`pou-hono.db`** — the data, one file, gitignored. Stored on the server or
+  configured persistent volume; hosting determines its location. Optional SMTP sends teacher details and links through the
+  provider, and console previews include teacher details in server logs.
 
 ### Routes
 
@@ -184,8 +190,9 @@ Existing teacher portal links from before this split must be replaced.
 - **Renaming a workshop** → the five names must match in `validSessions`
   (`validateStudent` in `server.js`), the options in `student.html`,
   `teacher.html` and `register.html`, the flip cards in `index.html`,
-  `translations.js`, and the `db.js` seed; existing rows need a migration like
-  the one-time rename in `db.js`.
+  and the `db.js` seed. Update `home_ws_*` descriptions in all four languages
+  in `translations.js`; workshop names and hosts stay in English in the HTML.
+  Existing rows need a migration like the one-time rename in `db.js`.
 - **Changing the event dates** → `public/event-days.js` and nowhere else. It is
   loaded both by Node (`require('./public/event-days.js')`) and by the browser
   (`<script src="/event-days.js">`), which is what keeps the dates defined once.
