@@ -24,8 +24,8 @@ and reload the page.
 
 ## Running it
 
-Use **Node.js 22 or 24** (`node -v` to check). The locked `better-sqlite3`
-version supports Node 20 and 22 through 26, but not Node 18 or 21. Then, from this folder:
+Use **Node.js 22 or 24** (`node -v` to check) — `package.json` pins
+`engines.node` to `22.x || 24.x`. Then, from this folder:
 
 ```bash
 npm install                  # 1. install dependencies
@@ -35,6 +35,14 @@ node server.js               # 4. start the server   (or: npm start)
 ```
 
 Open **http://localhost:3000**. `Ctrl + C` stops the server.
+
+`better-sqlite3` is a native module that compiles during install. npm 12 and
+later skip dependency install scripts unless they are approved, so
+`package.json` carries an `allowScripts` entry for the locked
+`better-sqlite3` version. If you upgrade `better-sqlite3`, update that entry to
+the new version (`npm install-scripts approve better-sqlite3`), or installs
+will leave the module unbuilt and the server will crash on start with
+"Could not locate the bindings file".
 
 On first run the database file `pou-hono.db` is created next to `db.js` (or at `DATABASE_PATH`) and
 seeded with example classes and students so the admin dashboard demos properly.
@@ -117,6 +125,11 @@ Good to know:
   error per email rather than pretending to send.
 - The "event details" line in the email is a placeholder until times and
   arrival details are confirmed — edit `detailsPlaceholder` in `email.js`.
+  The contact email and phone in the email are written into `email.js` too;
+  the venue address is `EVENT_LOCATION` in `server.js`.
+- **Railway blocks outbound SMTP on its Hobby plan** (Pro and above only).
+  On Hobby, every send fails and is only logged. Either use the Pro plan, or
+  use a provider's HTTPS API by replacing `sendEmail()` as described above.
 
 ### Changing the event dates
 
@@ -144,9 +157,10 @@ A teacher finishing registration is given **both** links: `/join/…` to hand to
 their students, and `/register/…` to bookmark for themselves. They carry different
 tokens: the student link permits sign-up only; keep the teacher portal link secret.
 
-The registration, student sign-up and teacher portal pages are translated into
-**English, te reo Māori, gagana Sāmoa and lea faka-Tonga** via
-`public/translations.js`.
+The home, registration, student sign-up and teacher portal pages — and the
+shared header, nav and footer on every page — are translated into **English,
+te reo Māori, gagana Sāmoa and lea faka-Tonga** via `public/translations.js`.
+The FAQ body and the admin dashboard are English only.
 
 > ⚠️ The Māori, Samoan and Tongan strings are AI-generated and **have not been
 > reviewed by fluent speakers**. They must be checked by someone fluent in each
@@ -173,6 +187,7 @@ Three levels of access, and every API route sits behind one of them:
 | POST | `/api/admin/logout` | public |
 | GET | `/api/admin/session` | public — reports whether you are logged in |
 | GET | `/api/admin/students` | **admin** — every student, in one query |
+| GET | `/api/admin/export/pdf` | **admin** — every student and teacher registration as a printable PDF (no ages or allergies) |
 | GET | `/api/registrations` | **admin** |
 | PUT | `/api/registrations/:id` | **admin** — full edit, or just the status toggle |
 | POST | `/api/registrations/:id/teacher-link` | **admin** — replaces the teacher portal link; old link stops working |
@@ -226,13 +241,18 @@ token. These in-memory limits reset when the server restarts.
   everything before it touches the database. Every query is a prepared
   statement (`db.prepare(...)` with `?` placeholders) — never build SQL by
   string concatenation here.
+- **`email.js`** — the confirmation email: builds the HTML and text bodies
+  and sends them over SMTP with `nodemailer`, or logs them while
+  `EMAIL_ENABLED` is not `true`.
 - **`db.js`** — the SQLite connection and the schema. Creates the
   `registrations` and `students` tables, upgrades an existing database in place
   via an idempotent `ALTER TABLE`, and seeds example data only on a genuinely
   empty table.
 - **`public/`** — the entire front-end as static files. `nav.js` injects the
   shared nav and footer, `translations.js` swaps the four languages via
-  `data-i18n` attributes, `event-days.js` holds the event dates.
+  `data-i18n` attributes, `event-days.js` holds the event dates,
+  `schools.js` holds the South Auckland school list behind the "Search your
+  school…" box, and `vendor/chart.umd.js` is the self-hosted Chart.js.
 - **`pou-hono.db`** — the data, as one file. Gitignored.
 
 `date` is stored as `YYYY-MM-DD` text specifically so it sorts and filters
@@ -252,25 +272,46 @@ correctly with plain `>=` / `<=` comparisons. Keep that format.
   existing page (nav placeholder, `styles.css`, `nav.js`, and `translations.js`
   if it needs the language switcher).
 - **New event dates** → `public/event-days.js`, and nowhere else.
+- **Renaming or changing a workshop** → the names must match everywhere:
+  `validSessions` in `validateStudent` (`server.js`), the session choices in
+  `student.html`, `teacher.html` and `register.html`, the flip cards on
+  `index.html`, the matching strings in `translations.js`, and the seed data
+  in `db.js`. Existing student rows keep their old value unless you migrate
+  them (see the one-time rename in `db.js`).
 
 ## Not in this repo yet
 
 Handled separately, or still to do:
 
-- Hosting and deployment; connecting a real email provider (the confirmation email itself is built — see [Confirmation emails](#confirmation-emails))
-- School-name search behind the "Search your school…" box on the teacher form
-- Real logo, event photography, and session images/descriptions
+- Hosting and deployment (the code is ready for Railway: `PORT` and
+  `DATABASE_PATH` come from the environment and `npm start` runs the server)
+- Connecting a real email provider (the confirmation email itself is built —
+  see [Confirmation emails](#confirmation-emails))
 - Native-speaker review of the Māori, Samoan and Tongan translations
-- Load testing to the brief's 1,000-user target
+- Load testing to the brief's 1,000-user target. SQLite in WAL mode on one
+  server should cope, but it has not been measured, and it limits the site to
+  a single instance; moving to PostgreSQL would mean porting `db.js` and every
+  query in `server.js`
+- Admin editing or removal of a single student. There is no route or UI for
+  it, so an individual (walk-in) sign-up cannot be removed through the site
+- Confirmation emails to students or individuals — the forms collect no
+  email address
 - Storing uploaded files — `file_name` is a filename string, not a stored file
+
+The admin PDF export draws names in Arial, DejaVu Sans or Liberation Sans from
+fixed system paths, and falls back to Helvetica (which mangles macrons and
+ʻokina) if none is installed. After deploying to a new host, export a PDF that
+includes a name with a macron and check it.
 
 ## Security headers
 
 `server.js` sets security headers before all other middleware: `Referrer-Policy:
 no-referrer` protects secret teacher URLs, `nosniff` prevents MIME sniffing, and
 `X-Frame-Options: DENY` / CSP `frame-ancestors 'none'` prevent framing this site.
-The CSP permits same-origin resources and fetches, data-image QR codes, Chart.js
-from cdnjs, and the Google Maps iframe. Scripts and styles currently require
+The CSP permits same-origin resources and fetches, data-image QR codes, and the
+Google Maps iframe. Chart.js is self-hosted in `public/vendor/`, so the CSP's
+remaining `https://cdnjs.cloudflare.com` script source is unused and can be
+removed. Scripts and styles currently require
 `'unsafe-inline'`; moving them into external files is separate work. There are
 no Google Fonts loads. Adding a new external resource requires updating the CSP
 and checking the affected pages in a browser. HSTS belongs to hosting/TLS.
